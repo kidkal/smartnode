@@ -58,6 +58,13 @@ func getLeader(c *cli.Context) (*api.NodeLeaderResponse, error) {
         sort.SliceStable(vals, func(i, j int) bool { return vals[i].Validator.Balance.Cmp(vals[j].Validator.Balance) > 0 })
         count := TopMinipoolCount
         if count > len(vals) { count = len(vals) }
+
+        // score formula: take the top N performing validators
+        // sum up their profits or losses
+        // profit is defined as: current balance - initial node deposit - user deposit
+        // unless something is broken, this should be current balance - 32
+        // unit is wei
+        
         nodeRanks[i].Score = new(big.Int)
         for j := 0; j < count; j++ {
             nodeRanks[i].Score.Add(nodeRanks[i].Score, vals[j].Validator.Balance)

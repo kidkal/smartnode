@@ -17,6 +17,7 @@ require (
 	github.com/minio/highwayhash v1.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
+	github.com/prometheus/client_golang v0.9.1
 	github.com/prysmaticlabs/ethereumapis v0.0.0-20200729044127-8027cc96e2c0
 	github.com/prysmaticlabs/go-ssz v0.0.0-20200612203617-6d5c9aa213ae
 	github.com/rocket-pool/rocketpool-go v0.0.0-20201105022215-e79c6a7154c0
@@ -31,3 +32,5 @@ require (
 	google.golang.org/grpc v1.29.1
 	gopkg.in/yaml.v2 v2.3.0
 )
+
+replace github.com/rocket-pool/rocketpool-go => github.com/kidkal/rocketpool-go v0.0.1
