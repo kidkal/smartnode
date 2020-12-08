@@ -1,14 +1,9 @@
 package metrics
 
 import (
-//    "bytes"
-//    "errors"
-    "fmt"
     "math/big"
     "sort"
     "time"
-//    "log"
-//    "os"
 
     "github.com/ethereum/go-ethereum/common"
     "github.com/prometheus/client_golang/prometheus"
@@ -17,13 +12,13 @@ import (
 
     "github.com/rocket-pool/rocketpool-go/node"
     "github.com/rocket-pool/rocketpool-go/rocketpool"
-    "github.com/rocket-pool/rocketpool-go/types"
     "github.com/rocket-pool/rocketpool-go/utils/eth"
     "github.com/rocket-pool/smartnode/rocketpool/api/minipool"
     "github.com/rocket-pool/smartnode/shared/services"
     "github.com/rocket-pool/smartnode/shared/services/beacon"
     "github.com/rocket-pool/smartnode/shared/types/api"
     "github.com/rocket-pool/smartnode/shared/utils/hex"
+    "github.com/rocket-pool/smartnode/shared/utils/log"
 )
 
 
@@ -42,20 +37,28 @@ type RocketPoolMetrics struct {
 }
 
 
-// Start RP metrics process
-func startRocketPoolMetricsProcess(c *cli.Context) error {
-    fmt.Println("enter startRocketPoolMetricsProcess")
+type metricsProcess struct {
+    rp *rocketpool.RocketPool
+    bc beacon.Client
+    metrics RocketPoolMetrics
+    logger log.ColorLogger
+}
+
+
+func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, error) {
+
+    logger.Println("Enter newMetricsProcss")
 
     // Get services
-    if err := services.RequireRocketStorage(c); err != nil { return err }
-    if err := services.RequireBeaconClientSynced(c); err != nil { return err }
+    if err := services.RequireRocketStorage(c); err != nil { return nil, err }
+    if err := services.RequireBeaconClientSynced(c); err != nil { return nil, err }
     rp, err := services.GetRocketPool(c)
-    if err != nil { return err }
+    if err != nil { return nil, err }
     bc, err := services.GetBeaconClient(c)
-    if err != nil { return err }
+    if err != nil { return nil, err }
 
     // Initialise metrics
-    metrics := &RocketPoolMetrics {
+    metrics := RocketPoolMetrics {
         leaderboard:    promauto.NewGaugeVec(
             prometheus.GaugeOpts{
                 Namespace:  "rocketpool",
@@ -85,25 +88,46 @@ func startRocketPoolMetricsProcess(c *cli.Context) error {
         }),
     }
 
-    fmt.Println("init finished")
-    // Update metrics on interval
-    err = updateNodeMetrics(rp, bc, metrics)
-    if err != nil { return err }
-    updateMetricsTimer := time.NewTicker(updateMetricsInterval)
-    for _ = range updateMetricsTimer.C {
-        err := updateNodeMetrics(rp, bc, metrics)
-        if err != nil { return err }
+    p := &metricsProcess {
+        rp: rp,
+        bc: bc,
+        metrics: metrics,
+        logger: logger,
     }
 
+    logger.Println("Exit newMetricsProcss")
+    return p, nil
+}
+
+
+// Start RP metrics process
+func startMetricsProcess(p *metricsProcess) error {
+
+    p.logger.Println("Enter startMetricsProcess")
+
+    // Update metrics on interval
+    err := updateMetrics(p)
+    if err != nil {
+        p.logger.Printlnf("Error in updateMetrics: %w", err)
+    }
+    updateMetricsTimer := time.NewTicker(metricsUpdateInterval)
+    for _ = range updateMetricsTimer.C {
+        err = updateMetrics(p)
+        if err != nil {
+            p.logger.Printlnf("Error in updateMetrics: %w", err)
+        }
+    }
+
+    p.logger.Println("Exit startMetricsProcess")
     return nil
 }
 
 
 // Update node metrics
-func updateNodeMetrics(rp *rocketpool.RocketPool, bc beacon.Client, p *RocketPoolMetrics) error {
-    fmt.Println("enter updateNodeMetrics")
+func updateMetrics(p *metricsProcess) error {
+    p.logger.Println("Enter updateMetrics")
 
-    minipools, err := minipool.GetAllMinipoolDetails(rp, bc)
+    minipools, err := minipool.GetAllMinipoolDetails(p.rp, p.bc)
     if err != nil { return err }
 
     // Get minipools with staking status and existing validator
@@ -111,7 +135,7 @@ func updateNodeMetrics(rp *rocketpool.RocketPool, bc beacon.Client, p *RocketPoo
     nodeToValMap := make(map[common.Address][]api.MinipoolDetails, len(minipools))
     for _, minipool := range minipools {
         // Add to status list
-        if minipool.Status.Status == types.Staking && minipool.Validator.Exists {
+        if minipool.Validator.Exists {
             address := minipool.Node.Address
             if _, ok := nodeToValMap[address]; !ok {
                 nodeToValMap[address] = []api.MinipoolDetails{}
@@ -143,16 +167,17 @@ func updateNodeMetrics(rp *rocketpool.RocketPool, bc beacon.Client, p *RocketPoo
         scoreEth := eth.WeiToEth(score)
 
         // push into prometheus
-        p.leaderboard.With(prometheus.Labels{"address":nodeAddress}).Set(scoreEth)
+        p.metrics.leaderboard.With(prometheus.Labels{"address":nodeAddress}).Set(scoreEth)
     }
 
-    nodeCount, err := node.GetNodeCount(rp, nil)
+    nodeCount, err := node.GetNodeCount(p.rp, nil)
     if err != nil { return err }
 
     // Update node metrics
-    p.totalNodes.Set(float64(nodeCount))
-    p.activeNodes.Set(float64(len(nodeToValMap)))
-    p.activeMinipools.Set(float64(len(minipools)))
+    p.metrics.totalNodes.Set(float64(nodeCount))
+    p.metrics.activeNodes.Set(float64(len(nodeToValMap)))
+    p.metrics.activeMinipools.Set(float64(len(minipools)))
 
+    p.logger.Println("Exit updateMetrics")
     return nil
 }

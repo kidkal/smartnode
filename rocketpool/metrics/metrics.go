@@ -3,18 +3,20 @@ package metrics
 import (
     "net/http"
     "time"
-    "fmt"
 
+    "github.com/fatih/color"
     "github.com/prometheus/client_golang/prometheus/promhttp"
     "github.com/urfave/cli"
-    "golang.org/x/sync/errgroup"
+
+    "github.com/rocket-pool/smartnode/shared/utils/log"
 )
 
 
 // Config
-const UPDATE_METRICS_INTERVAL string = "15s"
-var updateMetricsInterval, _ = time.ParseDuration(UPDATE_METRICS_INTERVAL)
-
+const (
+    MetricsColor = color.BgGreen
+)
+var metricsUpdateInterval, _ = time.ParseDuration("15s")
 
 // Register metrics command
 func RegisterCommands(app *cli.App, name string, aliases []string) {
@@ -31,24 +33,30 @@ func RegisterCommands(app *cli.App, name string, aliases []string) {
 
 // Run process
 func run(c *cli.Context) error {
-    fmt.Println("enter run")
-    var wg1 errgroup.Group
+    logger := log.NewColorLogger(MetricsColor)
+    logger.Println("Enter metrics.run")
 
-    // Start metrics processes
-    wg1.Go(func() error {
-        err := startRocketPoolMetricsProcess(c)
-        return err
-    })
-
-    // Serve metrics
-    wg1.Go(func() error {
-        http.Handle("/metrics", promhttp.Handler())
-        return http.ListenAndServe(":2112", nil)
-    })
-
-    if err := wg1.Wait(); err != nil {
+    p, err := newMetricsProcss(c, logger)
+    if err != nil {
+        logger.Printlnf("Error in newMetricsProcss: %w", err)
         return err
     }
 
-    return nil
+    // Start metrics processes
+    go (func() {
+        for {
+            if err := startMetricsProcess(p); err != nil {
+                logger.Printlnf("Error in startMetricsProcess: %w", err)
+            }
+            time.Sleep(metricsUpdateInterval)
+            logger.Println("continuing...")
+        }
+    })()
+
+    // Serve metrics
+    http.Handle("/metrics", promhttp.Handler())
+    err = http.ListenAndServe(":2112", nil)
+
+    logger.Printlnf("Exit metrics.run: %w", err)
+    return err
 }
