@@ -1,0 +1,114 @@
+version: "3.4"
+services:
+  eth1:
+    image: ${ETH1_IMAGE}
+    container_name: ${COMPOSE_PROJECT_NAME}_eth1
+    restart: unless-stopped
+    ports:
+      - "30303:30303/udp"
+      - "30303:30303/tcp"
+    volumes:
+      - eth1clientdata:/ethclient
+      - ./chains/eth1:/setup:ro
+    networks:
+      - net
+    environment:
+      - CLIENT=${ETH1_CLIENT}
+      - ETHSTATS_LABEL=${ETHSTATS_LABEL}
+      - ETHSTATS_LOGIN=${ETHSTATS_LOGIN}
+      - INFURA_PROJECT_ID=${INFURA_PROJECT_ID}
+      - PROVIDER_URL=${PROVIDER_URL}
+    entrypoint: sh
+    command: "/setup/start-node.sh"
+  eth2:
+    image: ${ETH2_IMAGE}
+    container_name: ${COMPOSE_PROJECT_NAME}_eth2
+    restart: unless-stopped
+    ports:
+      - "9001:9001/tcp"
+      - "9001:9001/udp"
+    volumes:
+      - eth2clientdata:/ethclient
+      - ./chains/eth2:/setup:ro
+    networks:
+      - net
+    environment:
+      - CLIENT=${ETH2_CLIENT}
+      - ETH1_PROVIDER=${ETH1_PROVIDER}
+    entrypoint: sh
+    command: "/setup/start-beacon.sh"
+    depends_on:
+      - eth1
+  validator:
+    image: ${VALIDATOR_IMAGE}
+    container_name: ${COMPOSE_PROJECT_NAME}_validator
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+      - ./chains/eth2:/setup:ro
+    networks:
+      - net
+    environment:
+      - CLIENT=${VALIDATOR_CLIENT}
+      - ETH2_PROVIDER=${ETH2_PROVIDER}
+      - CUSTOM_GRAFFITI=${CUSTOM_GRAFFITI}
+    entrypoint: sh
+    command: "/setup/start-validator.sh"
+    depends_on:
+      - eth2
+  api:
+    image: ${SMARTNODE_IMAGE}
+    container_name: ${COMPOSE_PROJECT_NAME}_api
+    restart: unless-stopped
+    volumes:
+      - .:/.rocketpool
+    networks:
+      - net
+    depends_on:
+      - eth1
+    entrypoint: /bin/sleep
+    command: "infinity"
+  node:
+    image: ${SMARTNODE_IMAGE}
+    container_name: ${COMPOSE_PROJECT_NAME}_node
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/.rocketpool
+    networks:
+      - net
+    command: "node"
+    depends_on:
+      - eth1
+      - eth2
+  metrics:
+    image: ${SMARTNODE_IMAGE}
+    container_name: ${COMPOSE_PROJECT_NAME}_metrics
+    restart: unless-stopped
+    expose:
+      - 2112/tcp
+    volumes:
+      - .:/.rocketpool
+    networks:
+      - net
+    command: "metrics"
+    depends_on:
+      - eth1
+      - eth2
+  watchtower:
+    image: ${SMARTNODE_IMAGE}
+    container_name: ${COMPOSE_PROJECT_NAME}_watchtower
+    restart: unless-stopped
+    volumes:
+      - .:/.rocketpool
+    networks:
+      - net
+    command: "watchtower"
+    depends_on:
+      - eth1
+      - eth2
+networks:
+  net:
+volumes:
+  eth1clientdata:
+  eth2clientdata:
