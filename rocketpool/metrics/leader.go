@@ -1,11 +1,9 @@
 package metrics
 
 import (
-    "math/big"
-    "sort"
     "time"
+    "strconv"
 
-    "github.com/ethereum/go-ethereum/common"
     "github.com/prometheus/client_golang/prometheus"
     "github.com/prometheus/client_golang/prometheus/promauto"
     "github.com/urfave/cli"
@@ -13,10 +11,9 @@ import (
     "github.com/rocket-pool/rocketpool-go/node"
     "github.com/rocket-pool/rocketpool-go/rocketpool"
     "github.com/rocket-pool/rocketpool-go/utils/eth"
-    "github.com/rocket-pool/smartnode/rocketpool/api/minipool"
+    apiNode "github.com/rocket-pool/smartnode/rocketpool/api/node"
     "github.com/rocket-pool/smartnode/shared/services"
     "github.com/rocket-pool/smartnode/shared/services/beacon"
-    "github.com/rocket-pool/smartnode/shared/types/api"
     "github.com/rocket-pool/smartnode/shared/utils/hex"
     "github.com/rocket-pool/smartnode/shared/utils/log"
 )
@@ -30,10 +27,10 @@ const (
 
 // RP metrics process
 type RocketPoolMetrics struct {
-    leaderboard            *prometheus.GaugeVec
+    nodeScores             *prometheus.GaugeVec
+    nodeMinipoolCounts     *prometheus.GaugeVec
     totalNodes             prometheus.Gauge
     activeNodes            prometheus.Gauge
-    activeMinipools        prometheus.Gauge
 }
 
 
@@ -59,12 +56,21 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
 
     // Initialise metrics
     metrics := RocketPoolMetrics {
-        leaderboard:    promauto.NewGaugeVec(
+        nodeScores:    promauto.NewGaugeVec(
             prometheus.GaugeOpts{
                 Namespace:  "rocketpool",
                 //Subsystem:  "rocketpool",
                 Name:       "node_score_eth",
                 Help:       "sum of rewards/penalties of the top two minipools for this node",
+            },
+            []string{"address", "rank"},
+        ),
+        nodeMinipoolCounts:    promauto.NewGaugeVec(
+            prometheus.GaugeOpts{
+                Namespace:  "rocketpool",
+                //Subsystem:  "rocketpool",
+                Name:       "node_minipool_count",
+                Help:       "number of activated minipools running for this node",
             },
             []string{"address"},
         ),
@@ -79,12 +85,6 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
             //Subsystem:      "rocketpool",
             Name:           "node_active_count",
             Help:           "number of active nodes in Rocket Pool",
-        }),
-        activeMinipools:   promauto.NewGauge(prometheus.GaugeOpts{
-            Namespace:      "rocketpool",
-            //Subsystem:      "rocketpool",
-            Name:           "node_minipool_count",
-            Help:           "number of active minipools in Rocket Pool",
         }),
     }
 
@@ -127,47 +127,18 @@ func startMetricsProcess(p *metricsProcess) error {
 func updateMetrics(p *metricsProcess) error {
     p.logger.Println("Enter updateMetrics")
 
-    minipools, err := minipool.GetAllMinipoolDetails(p.rp, p.bc)
+    nodeRanks, err := apiNode.GetNodeLeader(p.rp, p.bc)
     if err != nil { return err }
 
-    // Get minipools with staking status and existing validator
-    // put minipools into map by node address
-    nodeToValMap := make(map[common.Address][]api.MinipoolDetails, len(minipools))
-    for _, minipool := range minipools {
-        // Add to status list
-        if minipool.Validator.Exists {
-            address := minipool.Node.Address
-            if _, ok := nodeToValMap[address]; !ok {
-                nodeToValMap[address] = []api.MinipoolDetails{}
-            }
-            nodeToValMap[address] = append(nodeToValMap[address], minipool)
-        }
-    }
+    for _, nodeRank := range nodeRanks {
 
-    for address, vals := range nodeToValMap {
-
-        nodeAddress := hex.AddPrefix(address.Hex())
-
-        sort.SliceStable(vals, func(i, j int) bool { return vals[i].Validator.Balance.Cmp(vals[j].Validator.Balance) > 0 })
-        count := TopMinipoolCount
-        if count > len(vals) { count = len(vals) }
-
-        // score formula: take the top N performing minipools
-        // sum up their profits or losses
-        // profit is defined as: current balance - initial node deposit - user deposit
-        // unless something is broken, this should be current balance - 32
-        // unit is converted to eth
-
-        score := new(big.Int)
-        for j := 0; j < count; j++ {
-            score.Add(score, vals[j].Validator.Balance)
-            score.Sub(score, vals[j].Node.DepositBalance)
-            score.Sub(score, vals[j].User.DepositBalance)
-        }
-        scoreEth := eth.WeiToEth(score)
+        nodeAddress := hex.AddPrefix(nodeRank.Address.Hex())
+        minipoolCount := len(nodeRank.Details)
+        scoreEth := eth.WeiToEth(nodeRank.Score)
 
         // push into prometheus
-        p.metrics.leaderboard.With(prometheus.Labels{"address":nodeAddress}).Set(scoreEth)
+        p.metrics.nodeScores.With(prometheus.Labels{"address":nodeAddress, "rank":strconv.Itoa(nodeRank.Rank)}).Set(scoreEth)
+        p.metrics.nodeMinipoolCounts.With(prometheus.Labels{"address":nodeAddress}).Set(float64(minipoolCount))
     }
 
     nodeCount, err := node.GetNodeCount(p.rp, nil)
@@ -175,8 +146,7 @@ func updateMetrics(p *metricsProcess) error {
 
     // Update node metrics
     p.metrics.totalNodes.Set(float64(nodeCount))
-    p.metrics.activeNodes.Set(float64(len(nodeToValMap)))
-    p.metrics.activeMinipools.Set(float64(len(minipools)))
+    p.metrics.activeNodes.Set(float64(len(nodeRanks)))
 
     p.logger.Println("Exit updateMetrics")
     return nil

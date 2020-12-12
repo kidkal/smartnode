@@ -7,9 +7,11 @@ import (
     "github.com/ethereum/go-ethereum/common"
     "github.com/urfave/cli"
 
+    "github.com/rocket-pool/rocketpool-go/rocketpool"
     "github.com/rocket-pool/rocketpool-go/types"
     "github.com/rocket-pool/smartnode/rocketpool/api/minipool"
     "github.com/rocket-pool/smartnode/shared/services"
+    "github.com/rocket-pool/smartnode/shared/services/beacon"
     "github.com/rocket-pool/smartnode/shared/types/api"
 )
 
@@ -31,6 +33,16 @@ func getLeader(c *cli.Context) (*api.NodeLeaderResponse, error) {
 
     // Response
     response := api.NodeLeaderResponse{}
+
+    nodeRanks, err := GetNodeLeader(rp, bc)
+    if err != nil { return nil, err }
+
+    response.Nodes = nodeRanks
+    return &response, nil
+}
+
+
+func GetNodeLeader(rp *rocketpool.RocketPool, bc beacon.Client) ([]api.NodeRank, error) {
 
     minipools, err := minipool.GetAllMinipoolDetails(rp, bc)
     if err != nil { return nil, err }
@@ -64,7 +76,7 @@ func getLeader(c *cli.Context) (*api.NodeLeaderResponse, error) {
         // profit is defined as: current balance - initial node deposit - user deposit
         // unless something is broken, this should be current balance - 32
         // unit is wei
-        
+
         nodeRanks[i].Score = new(big.Int)
         for j := 0; j < count; j++ {
             nodeRanks[i].Score.Add(nodeRanks[i].Score, vals[j].Validator.Balance)
@@ -79,6 +91,5 @@ func getLeader(c *cli.Context) (*api.NodeLeaderResponse, error) {
         nodeRanks[i].Rank = i + 1
     }
 
-    response.Nodes = nodeRanks
-    return &response, nil
+    return nodeRanks, nil
 }
