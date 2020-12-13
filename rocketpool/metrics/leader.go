@@ -130,6 +130,9 @@ func updateMetrics(p *metricsProcess) error {
     nodeRanks, err := apiNode.GetNodeLeader(p.rp, p.bc)
     if err != nil { return err }
 
+    p.metrics.nodeScores.Reset()
+    p.metrics.nodeMinipoolCounts.Reset()
+
     for _, nodeRank := range nodeRanks {
 
         nodeAddress := hex.AddPrefix(nodeRank.Address.Hex())
