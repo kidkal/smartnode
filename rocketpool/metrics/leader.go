@@ -28,6 +28,7 @@ const (
 // RP metrics process
 type RocketPoolMetrics struct {
     nodeScores             *prometheus.GaugeVec
+    nodeScoreSummary       prometheus.Summary
     nodeMinipoolCounts     *prometheus.GaugeVec
     totalNodes             prometheus.Gauge
     activeNodes            prometheus.Gauge
@@ -56,34 +57,43 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
 
     // Initialise metrics
     metrics := RocketPoolMetrics {
-        nodeScores:    promauto.NewGaugeVec(
+        nodeScores:         promauto.NewGaugeVec(
             prometheus.GaugeOpts{
                 Namespace:  "rocketpool",
-                //Subsystem:  "rocketpool",
-                Name:       "node_score_eth",
+                Subsystem:  "node",
+                Name:       "score_eth",
                 Help:       "sum of rewards/penalties of the top two minipools for this node",
             },
             []string{"address", "rank"},
         ),
-        nodeMinipoolCounts:    promauto.NewGaugeVec(
+        nodeScoreSummary: promauto.NewSummary(prometheus.SummaryOpts{
+            Namespace:      "rocketpool",
+            Subsystem:      "node",
+            Name:           "score_hist_eth",
+            Help:           "distribution of sum of rewards/penalties of the top two minipools in rocketpool network",
+            Objectives:     map[float64]float64 {0.05:0.01, 0.25:0.01, 0.50:0.01, 0.75:0.01, 0.95:0.01},
+            MaxAge:         metricsUpdateInterval,
+            AgeBuckets:     2,
+        }),
+        nodeMinipoolCounts: promauto.NewGaugeVec(
             prometheus.GaugeOpts{
                 Namespace:  "rocketpool",
-                //Subsystem:  "rocketpool",
-                Name:       "node_minipool_count",
+                Subsystem:  "node",
+                Name:       "minipool_count",
                 Help:       "number of activated minipools running for this node",
             },
             []string{"address"},
         ),
         totalNodes:         promauto.NewGauge(prometheus.GaugeOpts{
             Namespace:      "rocketpool",
-            //Subsystem:      "rocketpool",
-            Name:           "node_total_count",
+            Subsystem:      "node",
+            Name:           "total_count",
             Help:           "total number of nodes in Rocket Pool",
         }),
         activeNodes:        promauto.NewGauge(prometheus.GaugeOpts{
             Namespace:      "rocketpool",
-            //Subsystem:      "rocketpool",
-            Name:           "node_active_count",
+            Subsystem:      "node",
+            Name:           "active_count",
             Help:           "number of active nodes in Rocket Pool",
         }),
     }
@@ -142,6 +152,7 @@ func updateMetrics(p *metricsProcess) error {
         // push into prometheus
         p.metrics.nodeScores.With(prometheus.Labels{"address":nodeAddress, "rank":strconv.Itoa(nodeRank.Rank)}).Set(scoreEth)
         p.metrics.nodeMinipoolCounts.With(prometheus.Labels{"address":nodeAddress}).Set(float64(minipoolCount))
+        p.metrics.nodeScoreSummary.Observe(scoreEth)
     }
 
     nodeCount, err := node.GetNodeCount(p.rp, nil)
