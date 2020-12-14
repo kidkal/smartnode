@@ -6,11 +6,13 @@ import (
 
     "github.com/prometheus/client_golang/prometheus"
     "github.com/prometheus/client_golang/prometheus/promauto"
+    "github.com/ethereum/go-ethereum/accounts"
     "github.com/urfave/cli"
 
     "github.com/rocket-pool/rocketpool-go/node"
     "github.com/rocket-pool/rocketpool-go/rocketpool"
     "github.com/rocket-pool/rocketpool-go/utils/eth"
+    "github.com/rocket-pool/smartnode/rocketpool/api/minipool"
     apiNode "github.com/rocket-pool/smartnode/rocketpool/api/node"
     "github.com/rocket-pool/smartnode/shared/services"
     "github.com/rocket-pool/smartnode/shared/services/beacon"
@@ -32,12 +34,14 @@ type RocketPoolMetrics struct {
     nodeMinipoolCounts     *prometheus.GaugeVec
     totalNodes             prometheus.Gauge
     activeNodes            prometheus.Gauge
+    minipoolBalance        *prometheus.GaugeVec
 }
 
 
 type metricsProcess struct {
     rp *rocketpool.RocketPool
     bc beacon.Client
+    account accounts.Account
     metrics RocketPoolMetrics
     logger log.ColorLogger
 }
@@ -50,9 +54,13 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
     // Get services
     if err := services.RequireRocketStorage(c); err != nil { return nil, err }
     if err := services.RequireBeaconClientSynced(c); err != nil { return nil, err }
+    w, err := services.GetWallet(c)
+    if err != nil { return nil, err }
     rp, err := services.GetRocketPool(c)
     if err != nil { return nil, err }
     bc, err := services.GetBeaconClient(c)
+    if err != nil { return nil, err }
+    account, err := w.GetNodeAccount()
     if err != nil { return nil, err }
 
     // Initialise metrics
@@ -96,11 +104,21 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
             Name:           "active_count",
             Help:           "number of active nodes in Rocket Pool",
         }),
+        minipoolBalance:    promauto.NewGaugeVec(
+            prometheus.GaugeOpts{
+                Namespace:  "rocketpool",
+                Subsystem:  "minipool",
+                Name:       "balance_eth",
+                Help:       "balance of validator",
+            },
+            []string{"address", "validatorPubkey"},
+        ),
     }
 
     p := &metricsProcess {
         rp: rp,
         bc: bc,
+        account: account,
         metrics: metrics,
         logger: logger,
     }
@@ -137,6 +155,52 @@ func startMetricsProcess(p *metricsProcess) error {
 func updateMetrics(p *metricsProcess) error {
     p.logger.Println("Enter updateMetrics")
 
+    var err error
+    err = updateNodeCounts(p)
+    err = updateMinipool(p)
+    err = updateLeader(p)
+
+    p.logger.Println("Exit updateMetrics")
+    return err
+}
+
+
+func updateNodeCounts(p *metricsProcess) error {
+    p.logger.Println("Enter updateNodeCounts")
+
+    nodeCount, err := node.GetNodeCount(p.rp, nil)
+    if err != nil { return err }
+
+    // Update node metrics
+    p.metrics.totalNodes.Set(float64(nodeCount))
+
+    p.logger.Println("Exit updateNodeCounts")
+    return nil
+}
+
+
+func updateMinipool(p *metricsProcess) error {
+    p.logger.Println("Enter updateMinipool")
+
+    minipools, err := minipool.GetNodeMinipoolDetails(p.rp, p.bc, p.account.Address)
+    if err != nil { return err }
+
+    for _, minipool := range minipools {
+        address := hex.AddPrefix(minipool.Node.Address.Hex())
+        validatorPubkey := hex.AddPrefix(minipool.ValidatorPubkey.Hex())
+        balance := eth.WeiToEth(minipool.Validator.Balance)
+
+        p.metrics.minipoolBalance.With(prometheus.Labels{"address":address, "validatorPubkey":validatorPubkey}).Set(balance)
+    }
+
+    p.logger.Println("Exit updateMinipool")
+    return nil
+}
+
+
+func updateLeader(p *metricsProcess) error {
+    p.logger.Println("Enter updateLeader")
+
     nodeRanks, err := apiNode.GetNodeLeader(p.rp, p.bc)
     if err != nil { return err }
 
@@ -155,13 +219,8 @@ func updateMetrics(p *metricsProcess) error {
         p.metrics.nodeScoreSummary.Observe(scoreEth)
     }
 
-    nodeCount, err := node.GetNodeCount(p.rp, nil)
-    if err != nil { return err }
-
-    // Update node metrics
-    p.metrics.totalNodes.Set(float64(nodeCount))
     p.metrics.activeNodes.Set(float64(len(nodeRanks)))
 
-    p.logger.Println("Exit updateMetrics")
+    p.logger.Println("Exit updateLeader")
     return nil
 }
