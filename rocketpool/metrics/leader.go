@@ -63,6 +63,8 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
     account, err := w.GetNodeAccount()
     if err != nil { return nil, err }
 
+    eps := 0.01
+
     // Initialise metrics
     metrics := RocketPoolMetrics {
         nodeScores:         promauto.NewGaugeVec(
@@ -79,9 +81,9 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
             Subsystem:      "node",
             Name:           "score_hist_eth",
             Help:           "distribution of sum of rewards/penalties of the top two minipools in rocketpool network",
-            Objectives:     map[float64]float64 {0.05:0.01, 0.25:0.01, 0.50:0.01, 0.75:0.01, 0.95:0.01},
+            Objectives:     map[float64]float64 {0.01:eps, 0.05:eps, 0.10:eps, 0.15:eps, 0.20:eps, 0.25:eps, 0.30:eps, 0.35:eps, 0.40:eps, 0.45:eps, 0.50:eps, 0.55:eps, 0.60:eps, 0.65:eps, 0.70:eps, 0.75:eps, 0.80:eps, 0.85:eps, 0.90:eps, 0.95:eps, 0.99:eps},
             MaxAge:         metricsUpdateInterval,
-            AgeBuckets:     2,
+            AgeBuckets:     1,
         }),
         nodeMinipoolCounts: promauto.NewGaugeVec(
             prometheus.GaugeOpts{
