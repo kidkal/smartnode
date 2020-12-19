@@ -7,8 +7,8 @@ import (
     "github.com/ethereum/go-ethereum/common"
     "github.com/urfave/cli"
 
+    //"github.com/rocket-pool/rocketpool-go/node"
     "github.com/rocket-pool/rocketpool-go/rocketpool"
-    "github.com/rocket-pool/rocketpool-go/types"
     "github.com/rocket-pool/smartnode/rocketpool/api/minipool"
     "github.com/rocket-pool/smartnode/shared/services"
     "github.com/rocket-pool/smartnode/shared/services/beacon"
@@ -46,19 +46,19 @@ func GetNodeLeader(rp *rocketpool.RocketPool, bc beacon.Client) ([]api.NodeRank,
 
     minipools, err := minipool.GetAllMinipoolDetails(rp, bc)
     if err != nil { return nil, err }
+    //nodeAddresses, err := node.GetNodeAddresses(rp, nil)
+    //if err != nil { return nil, err }
 
     // Get stating and has validator minipools
     // put minipools into map by address
     nodeToValMap := make(map[common.Address][]api.MinipoolDetails, len(minipools))
     for _, minipool := range minipools {
         // Add to status list
-        if minipool.Status.Status == types.Staking && minipool.Validator.Exists {
-            address := minipool.Node.Address
-            if _, ok := nodeToValMap[address]; !ok {
-                nodeToValMap[address] = []api.MinipoolDetails{}
-            }
-            nodeToValMap[address] = append(nodeToValMap[address], minipool)
+        address := minipool.Node.Address
+        if _, ok := nodeToValMap[address]; !ok {
+            nodeToValMap[address] = []api.MinipoolDetails{}
         }
+        nodeToValMap[address] = append(nodeToValMap[address], minipool)
     }
 
     nodeRanks := make([]api.NodeRank, len(nodeToValMap))
@@ -86,10 +86,20 @@ func GetNodeLeader(rp *rocketpool.RocketPool, bc beacon.Client) ([]api.NodeRank,
         i++
     }
 
-    sort.SliceStable(nodeRanks, func(i, j int) bool { return nodeRanks[i].Score.Cmp(nodeRanks[j].Score) > 0 })
-    for i := 0; i < len(nodeRanks); i++ {
-        nodeRanks[i].Rank = i + 1
+    sort.SliceStable(nodeRanks[0:i], func(m, n int) bool { return nodeRanks[m].Score.Cmp(nodeRanks[n].Score) > 0 })
+    for k := 0; k < i; k++ {
+        nodeRanks[k].Rank = k + 1
     }
+
+    // add nodes with no validators
+    // for _, address := range nodeAddresses {
+    //     if _, ok := nodeToValMap[address]; !ok {
+    //         nodeRanks[i].Address = address
+    //         nodeRanks[i].Score = new(big.Int)
+    //         nodeRanks[i].Rank = 999999999
+    //         i++
+    //     }
+    // }
 
     return nodeRanks, nil
 }

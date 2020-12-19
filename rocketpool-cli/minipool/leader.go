@@ -4,7 +4,6 @@ import (
     "fmt"
     "sort"
 
-    "github.com/rocket-pool/rocketpool-go/types"
     "github.com/rocket-pool/rocketpool-go/utils/eth"
     "github.com/urfave/cli"
 
@@ -29,12 +28,28 @@ func getLeader(c *cli.Context) error {
 
     // Get minipools by status
     minipools := []api.MinipoolDetails{}
+    statusCounts := map[string]int{}
     for _, minipool := range status.Minipools {
 
         // Add to status list
-        if minipool.Status.Status == types.Staking && minipool.Validator.Exists {
+        if minipool.Validator.Exists {
             minipools = append(minipools, minipool)
         }
+
+        // status count
+        statusName := minipool.Status.Status.String()
+        if _, ok := statusCounts[statusName]; !ok {
+            statusCounts[statusName] = 0
+        }
+        statusCounts[statusName] = statusCounts[statusName]+1
+    }
+
+    fmt.Printf("Total minipools: %d\n", len(status.Minipools))
+    fmt.Println("Status,Count")
+
+    for status, count := range statusCounts {
+        fmt.Printf("%s,%d", status, count)
+        fmt.Println("")
     }
 
     // Print & return
@@ -42,11 +57,11 @@ func getLeader(c *cli.Context) error {
         fmt.Println("No active minipools")
         return nil
     }
+    fmt.Println("")
 
     sort.SliceStable(minipools, func(i, j int) bool { return eth.WeiToEth(minipools[i].Validator.Balance) > eth.WeiToEth(minipools[j].Validator.Balance) })
 
-    fmt.Printf("%d active and staking minipools\n", len(minipools))
-    fmt.Println("")
+    fmt.Printf("Minipools with validators: %d\n", len(minipools))
     fmt.Println("Rank,Node address,Validator pubkey,RP status update time,Accumulated reward/penalty (ETH)")
 
     for i, minipool := range minipools {
