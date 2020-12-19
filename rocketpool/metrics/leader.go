@@ -82,7 +82,7 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
             Name:           "score_hist_eth",
             Help:           "distribution of sum of rewards/penalties of the top two minipools in rocketpool network",
             Objectives:     map[float64]float64 {0.01:eps, 0.05:eps, 0.10:eps, 0.15:eps, 0.20:eps, 0.25:eps, 0.30:eps, 0.35:eps, 0.40:eps, 0.45:eps, 0.50:eps, 0.55:eps, 0.60:eps, 0.65:eps, 0.70:eps, 0.75:eps, 0.80:eps, 0.85:eps, 0.90:eps, 0.95:eps, 0.99:eps},
-            MaxAge:         metricsUpdateInterval,
+            MaxAge:         metricsUpdateInterval*2,
             AgeBuckets:     1,
         }),
         nodeMinipoolCounts: promauto.NewGaugeVec(
@@ -211,14 +211,16 @@ func updateLeader(p *metricsProcess) error {
 
     for _, nodeRank := range nodeRanks {
 
+        // push into prometheus
         nodeAddress := hex.AddPrefix(nodeRank.Address.Hex())
         minipoolCount := len(nodeRank.Details)
-        scoreEth := eth.WeiToEth(nodeRank.Score)
-
-        // push into prometheus
-        p.metrics.nodeScores.With(prometheus.Labels{"address":nodeAddress, "rank":strconv.Itoa(nodeRank.Rank)}).Set(scoreEth)
         p.metrics.nodeMinipoolCounts.With(prometheus.Labels{"address":nodeAddress}).Set(float64(minipoolCount))
-        p.metrics.nodeScoreSummary.Observe(scoreEth)
+
+        if nodeRank.Score != nil {
+            scoreEth := eth.WeiToEth(nodeRank.Score)
+            p.metrics.nodeScores.With(prometheus.Labels{"address":nodeAddress, "rank":strconv.Itoa(nodeRank.Rank)}).Set(scoreEth)
+            p.metrics.nodeScoreSummary.Observe(scoreEth)
+        }
     }
 
     p.metrics.activeNodes.Set(float64(len(nodeRanks)))

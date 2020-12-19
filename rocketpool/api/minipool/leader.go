@@ -174,12 +174,6 @@ func getMinipoolBalance(rp *rocketpool.RocketPool, minipoolAddress common.Addres
             validatorDetails.Balance = eth.GweiToWei(float64(validator.Balance))
         }
         details.Validator = validatorDetails
-
-    } else {
-
-        details.Validator = api.ValidatorDetails {
-            Balance: new(big.Int),
-        }
     }
 
     return details, nil

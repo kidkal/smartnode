@@ -2,6 +2,7 @@ package node
 
 import (
     "fmt"
+    "math"
 
     "github.com/rocket-pool/rocketpool-go/utils/eth"
     "github.com/urfave/cli"
@@ -34,7 +35,13 @@ func getLeader(c *cli.Context) error {
 
     for _, nodeRank := range response.Nodes {
         nodeAddress := hex.AddPrefix(nodeRank.Address.Hex())
-        score := eth.WeiToEth(nodeRank.Score)
+        var score float64
+        if nodeRank.Score != nil {
+            score = eth.WeiToEth(nodeRank.Score)
+        } else {
+            score = math.NaN()
+        }
+
         fmt.Printf("%4d,%s,%+0.10f,%4d", nodeRank.Rank, nodeAddress, score, len(nodeRank.Details))
         fmt.Println("")
     }
