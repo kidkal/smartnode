@@ -1,8 +1,10 @@
 package metrics
 
 import (
-    "time"
+    "fmt"
+    "sort"
     "strconv"
+    "time"
 
     "github.com/prometheus/client_golang/prometheus"
     "github.com/prometheus/client_golang/prometheus/promauto"
@@ -22,18 +24,18 @@ import (
 
 
 const (
-    NodeDetailsBatchSize = 10
-    TopMinipoolCount = 2
+    BucketInterval = 0.025
 )
 
 
 // RP metrics process
 type RocketPoolMetrics struct {
     nodeScores             *prometheus.GaugeVec
-    nodeScoreSummary       prometheus.Summary
+    nodeScoreHist          *prometheus.GaugeVec
+    nodeScoreHistSum       prometheus.Gauge
+    nodeScoreHistCount     prometheus.Gauge
     nodeMinipoolCounts     *prometheus.GaugeVec
     totalNodes             prometheus.Gauge
-    activeNodes            prometheus.Gauge
     minipoolBalance        *prometheus.GaugeVec
 }
 
@@ -63,8 +65,6 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
     account, err := w.GetNodeAccount()
     if err != nil { return nil, err }
 
-    eps := 0.01
-
     // Initialise metrics
     metrics := RocketPoolMetrics {
         nodeScores:         promauto.NewGaugeVec(
@@ -76,14 +76,24 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
             },
             []string{"address", "rank"},
         ),
-        nodeScoreSummary: promauto.NewSummary(prometheus.SummaryOpts{
+        nodeScoreHist: promauto.NewGaugeVec(
+            prometheus.GaugeOpts{
+                Namespace:  "rocketpool",
+                Subsystem:  "node",
+                Name:       "score_hist_eth",
+                Help:       "distribution of sum of rewards/penalties of the top two minipools in rocketpool network",
+                },
+            []string{"le"},
+        ),
+        nodeScoreHistSum:   promauto.NewGauge(prometheus.GaugeOpts{
             Namespace:      "rocketpool",
             Subsystem:      "node",
-            Name:           "score_hist_eth",
-            Help:           "distribution of sum of rewards/penalties of the top two minipools in rocketpool network",
-            Objectives:     map[float64]float64 {0.01:eps, 0.05:eps, 0.10:eps, 0.15:eps, 0.20:eps, 0.25:eps, 0.30:eps, 0.35:eps, 0.40:eps, 0.45:eps, 0.50:eps, 0.55:eps, 0.60:eps, 0.65:eps, 0.70:eps, 0.75:eps, 0.80:eps, 0.85:eps, 0.90:eps, 0.95:eps, 0.99:eps},
-            MaxAge:         metricsUpdateInterval*2,
-            AgeBuckets:     1,
+            Name:           "score_hist_eth_sum",
+        }),
+        nodeScoreHistCount: promauto.NewGauge(prometheus.GaugeOpts{
+            Namespace:      "rocketpool",
+            Subsystem:      "node",
+            Name:           "score_hist_eth_count",
         }),
         nodeMinipoolCounts: promauto.NewGaugeVec(
             prometheus.GaugeOpts{
@@ -99,12 +109,6 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
             Subsystem:      "node",
             Name:           "total_count",
             Help:           "total number of nodes in Rocket Pool",
-        }),
-        activeNodes:        promauto.NewGauge(prometheus.GaugeOpts{
-            Namespace:      "rocketpool",
-            Subsystem:      "node",
-            Name:           "active_count",
-            Help:           "number of active nodes in Rocket Pool",
         }),
         minipoolBalance:    promauto.NewGaugeVec(
             prometheus.GaugeOpts{
@@ -208,6 +212,10 @@ func updateLeader(p *metricsProcess) error {
 
     p.metrics.nodeScores.Reset()
     p.metrics.nodeMinipoolCounts.Reset()
+    p.metrics.nodeScoreHist.Reset()
+
+    histogram := make(map[float64]int, 100)
+    var sumScores float64
 
     for _, nodeRank := range nodeRanks {
 
@@ -219,11 +227,34 @@ func updateLeader(p *metricsProcess) error {
         if nodeRank.Score != nil {
             scoreEth := eth.WeiToEth(nodeRank.Score)
             p.metrics.nodeScores.With(prometheus.Labels{"address":nodeAddress, "rank":strconv.Itoa(nodeRank.Rank)}).Set(scoreEth)
-            p.metrics.nodeScoreSummary.Observe(scoreEth)
+
+            // find next highest bucket to put in
+            bucket := float64(int(scoreEth / BucketInterval)) * BucketInterval
+        	if (bucket < scoreEth) {
+        	    bucket = bucket + BucketInterval
+        	}
+            if _, ok := histogram[bucket]; !ok {
+                histogram[bucket] = 0
+            }
+            histogram[bucket]++
+            sumScores += scoreEth
         }
     }
 
-    p.metrics.activeNodes.Set(float64(len(nodeRanks)))
+    buckets := make([]float64, 0, len(histogram))
+    for b := range histogram {
+        buckets = append(buckets, b)
+    }
+    sort.Float64s(buckets)
+
+    accCount := 0
+    for _, b := range buckets {
+        accCount += histogram[b]
+        p.metrics.nodeScoreHist.With(prometheus.Labels{"le":fmt.Sprintf("%.3f", b)}).Set(float64(accCount))
+    }
+
+    p.metrics.nodeScoreHistSum.Set(sumScores)
+    p.metrics.nodeScoreHistCount.Set(float64(accCount))
 
     p.logger.Println("Exit updateLeader")
     return nil
