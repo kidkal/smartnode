@@ -1,4 +1,4 @@
-version: "3.4"
+version: "3.8"
 services:
   eth1:
     image: ${ETH1_IMAGE}
@@ -7,9 +7,13 @@ services:
     ports:
       - "30303:30303/udp"
       - "30303:30303/tcp"
+    expose:
+      - 8545/tcp
+      - 8546/tcp
     volumes:
       - eth1clientdata:/ethclient
       - ./chains/eth1:/setup:ro
+      - eth1ipc:/ipc
     networks:
       - net
     environment:
@@ -25,8 +29,11 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}_eth2
     restart: unless-stopped
     ports:
-      - "9001:9001/tcp"
-      - "9001:9001/udp"
+      - "9091:9091/tcp"
+      - "9091:9091/udp"
+    expose:
+      - 5052/tcp
+      - 5053/tcp
     volumes:
       - eth2clientdata:/ethclient
       - ./chains/eth2:/setup:ro
@@ -34,7 +41,7 @@ services:
       - net
     environment:
       - CLIENT=${ETH2_CLIENT}
-      - ETH1_PROVIDER=${ETH1_PROVIDER}
+      - ETH1_PROVIDER=http://eth1:8545
     entrypoint: sh
     command: "/setup/start-beacon.sh"
     depends_on:
@@ -43,6 +50,9 @@ services:
     image: ${VALIDATOR_IMAGE}
     container_name: ${COMPOSE_PROJECT_NAME}_validator
     restart: unless-stopped
+    expose:
+      - 5062/tcp
+      - 5064/tcp
     volumes:
       - ./data:/data
       - ./chains/eth2:/setup:ro
@@ -60,8 +70,11 @@ services:
     image: ${SMARTNODE_IMAGE}
     container_name: ${COMPOSE_PROJECT_NAME}_api
     restart: unless-stopped
+    stop_signal: SIGKILL
+    stop_grace_period: 1s
     volumes:
       - .:/.rocketpool
+      - eth1ipc:/ipc
     networks:
       - net
     depends_on:
@@ -75,9 +88,23 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/.rocketpool
+      - eth1ipc:/ipc
     networks:
       - net
     command: "node"
+    depends_on:
+      - eth1
+      - eth2
+  watchtower:
+    image: ${SMARTNODE_IMAGE}
+    container_name: ${COMPOSE_PROJECT_NAME}_watchtower
+    restart: unless-stopped
+    volumes:
+      - .:/.rocketpool
+      - eth1ipc:/ipc
+    networks:
+      - net
+    command: "watchtower"
     depends_on:
       - eth1
       - eth2
@@ -89,21 +116,10 @@ services:
       - 2112/tcp
     volumes:
       - .:/.rocketpool
+      - eth1ipc:/ipc
     networks:
       - net
     command: "metrics"
-    depends_on:
-      - eth1
-      - eth2
-  watchtower:
-    image: ${SMARTNODE_IMAGE}
-    container_name: ${COMPOSE_PROJECT_NAME}_watchtower
-    restart: unless-stopped
-    volumes:
-      - .:/.rocketpool
-    networks:
-      - net
-    command: "watchtower"
     depends_on:
       - eth1
       - eth2
@@ -112,3 +128,4 @@ networks:
 volumes:
   eth1clientdata:
   eth2clientdata:
+  eth1ipc:
