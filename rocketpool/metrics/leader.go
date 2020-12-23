@@ -2,6 +2,7 @@ package metrics
 
 import (
     "fmt"
+    "math/big"
     "sort"
     "strconv"
     "time"
@@ -10,11 +11,14 @@ import (
     "github.com/prometheus/client_golang/prometheus/promauto"
     "github.com/ethereum/go-ethereum/accounts"
     "github.com/urfave/cli"
+    "golang.org/x/sync/errgroup"
 
     "github.com/rocket-pool/rocketpool-go/node"
+    "github.com/rocket-pool/rocketpool-go/network"
     "github.com/rocket-pool/rocketpool-go/rocketpool"
     "github.com/rocket-pool/rocketpool-go/utils/eth"
     "github.com/rocket-pool/smartnode/rocketpool/api/minipool"
+    apiNetwork "github.com/rocket-pool/smartnode/rocketpool/api/network"
     apiNode "github.com/rocket-pool/smartnode/rocketpool/api/node"
     "github.com/rocket-pool/smartnode/shared/services"
     "github.com/rocket-pool/smartnode/shared/services/beacon"
@@ -37,6 +41,9 @@ type RocketPoolMetrics struct {
     nodeMinipoolCounts     *prometheus.GaugeVec
     totalNodes             prometheus.Gauge
     minipoolBalance        *prometheus.GaugeVec
+    networkFees            *prometheus.GaugeVec
+    networkBlock           prometheus.Gauge
+    networkBalances        *prometheus.GaugeVec
 }
 
 
@@ -119,6 +126,30 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
             },
             []string{"address", "validatorPubkey"},
         ),
+        networkFees:    promauto.NewGaugeVec(
+            prometheus.GaugeOpts{
+                Namespace:  "rocketpool",
+                Subsystem:  "network",
+                Name:       "fee_rate",
+                Help:       "network fees as rate of amount staked",
+            },
+            []string{"range"},
+        ),
+        networkBlock:       promauto.NewGauge(prometheus.GaugeOpts{
+            Namespace:      "rocketpool",
+            Subsystem:      "network",
+            Name:           "updated_block",
+            Help:           "block of lastest submitted balances",
+        }),
+        networkBalances:    promauto.NewGaugeVec(
+            prometheus.GaugeOpts{
+                Namespace:  "rocketpool",
+                Subsystem:  "network",
+                Name:       "balance_eth",
+                Help:       "network balances and supplies in given unit",
+            },
+            []string{"unit"},
+        ),
     }
 
     p := &metricsProcess {
@@ -165,6 +196,7 @@ func updateMetrics(p *metricsProcess) error {
     err = updateNodeCounts(p)
     err = updateMinipool(p)
     err = updateLeader(p)
+    err = updateNetwork(p)
 
     p.logger.Println("Exit updateMetrics")
     return err
@@ -258,4 +290,91 @@ func updateLeader(p *metricsProcess) error {
 
     p.logger.Println("Exit updateLeader")
     return nil
+}
+
+func updateNetwork(p *metricsProcess) error {
+    p.logger.Println("Enter updateNetwork")
+
+    nodeFees, err := apiNetwork.GetNodeFee(p.rp)
+    if err != nil { return err }
+
+    p.metrics.networkFees.With(prometheus.Labels{"range":"current"}).Set(nodeFees.NodeFee)
+    p.metrics.networkFees.With(prometheus.Labels{"range":"min"}).Set(nodeFees.MinNodeFee)
+    p.metrics.networkFees.With(prometheus.Labels{"range":"target"}).Set(nodeFees.TargetNodeFee)
+    p.metrics.networkFees.With(prometheus.Labels{"range":"max"}).Set(nodeFees.MaxNodeFee)
+
+    stuff, err := getOtherNetworkStuff(p.rp)
+    if err != nil { return err }
+
+    p.metrics.networkBlock.Set(float64(stuff.Block))
+    p.metrics.networkBalances.With(prometheus.Labels{"unit":"TotalETH"}).Set(eth.WeiToEth(stuff.TotalETH))
+    p.metrics.networkBalances.With(prometheus.Labels{"unit":"StakingETH"}).Set(eth.WeiToEth(stuff.StakingETH))
+    p.metrics.networkBalances.With(prometheus.Labels{"unit":"TotalRETH"}).Set(eth.WeiToEth(stuff.TotalRETH))
+    p.metrics.networkBalances.With(prometheus.Labels{"unit":"Withdraw"}).Set(eth.WeiToEth(stuff.WithdrawBalance))
+
+    p.logger.Println("Exit updateNetwork")
+    return nil
+}
+
+
+type networkStuff struct {
+    Block uint64
+    TotalETH *big.Int
+    StakingETH *big.Int
+    TotalRETH *big.Int
+    WithdrawBalance *big.Int
+}
+
+
+func getOtherNetworkStuff(rp *rocketpool.RocketPool) (*networkStuff, error) {
+    stuff := networkStuff{}
+
+    // Sync
+    var wg errgroup.Group
+
+    // Get data
+    wg.Go(func() error {
+        block, err := network.GetBalancesBlock(rp, nil)
+        if err == nil {
+            stuff.Block = block
+        }
+        return err
+    })
+    wg.Go(func() error {
+        totalETH, err := network.GetTotalETHBalance(rp, nil)
+        if err == nil {
+            stuff.TotalETH = totalETH
+        }
+        return err
+    })
+    wg.Go(func() error {
+        stakingETH, err := network.GetStakingETHBalance(rp, nil)
+        if err == nil {
+            stuff.StakingETH = stakingETH
+        }
+        return err
+    })
+    wg.Go(func() error {
+        totalRETH, err := network.GetTotalRETHSupply(rp, nil)
+        if err == nil {
+            stuff.TotalRETH = totalRETH
+        }
+        return err
+    })
+    wg.Go(func() error {
+        withdrawBalance, err := network.GetWithdrawalBalance(rp, nil)
+        if err == nil {
+            stuff.WithdrawBalance = withdrawBalance
+        }
+        return err
+    })
+
+    // Wait for data
+    if err := wg.Wait(); err != nil {
+        return nil, err
+    }
+
+    // Return response
+    return &stuff, nil
+
 }
