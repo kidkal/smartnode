@@ -5,7 +5,9 @@ import (
     "sort"
 
     "github.com/ethereum/go-ethereum/common"
+    "golang.org/x/sync/errgroup"
     "github.com/urfave/cli"
+    "go.uber.org/multierr"
 
     "github.com/rocket-pool/rocketpool-go/node"
     "github.com/rocket-pool/rocketpool-go/rocketpool"
@@ -46,8 +48,8 @@ func GetNodeLeader(rp *rocketpool.RocketPool, bc beacon.Client) ([]api.NodeRank,
 
     minipools, err := minipool.GetAllMinipoolDetails(rp, bc)
     if err != nil { return nil, err }
-    nodeAddresses, err := node.GetNodeAddresses(rp, nil)
-    if err != nil { return nil, err }
+    nodeRanks, err := GetNodeDetails(rp)
+    if err != nil && nodeRanks == nil { return nil, err }
 
     // Get stating and has validator minipools
     // put minipools into map by address
@@ -61,31 +63,69 @@ func GetNodeLeader(rp *rocketpool.RocketPool, bc beacon.Client) ([]api.NodeRank,
         nodeToValMap[address] = append(nodeToValMap[address], minipool)
     }
 
-    nodeRanks := make([]api.NodeRank, len(nodeAddresses))
-    i := 0
-
-    for address, vals := range nodeToValMap {
-        nodeRanks[i].Address = address
+    for i, nodeRank := range nodeRanks {
+        vals, ok := nodeToValMap[nodeRank.Address]
+        if !ok { continue }
         nodeRanks[i].Details = vals
         nodeRanks[i].Score = calculateNodeScore(vals)
-        i++
     }
 
-    sort.SliceStable(nodeRanks[0:i], func(m, n int) bool { return nodeRanks[m].Score.Cmp(nodeRanks[n].Score) > 0 })
-    for k := 0; k < i; k++ {
-        nodeRanks[k].Rank = k + 1
+    sortFunc := func(m, n int) bool {
+        if nodeRanks[m].Score == nil { return false }
+        if nodeRanks[n].Score == nil { return true }
+        return nodeRanks[m].Score.Cmp(nodeRanks[n].Score) > 0
     }
-
-    // add nodes with no validators
-    for _, address := range nodeAddresses {
-        if _, ok := nodeToValMap[address]; !ok {
-            nodeRanks[i].Address = address
+    sort.SliceStable(nodeRanks, sortFunc)
+    k := 1
+    for i := range nodeRanks {
+        if (nodeRanks[i].Score != nil) {
+            nodeRanks[i].Rank = k
+            k++
+        } else {
             nodeRanks[i].Rank = 999999999
-            i++
         }
     }
 
     return nodeRanks, nil
+}
+
+
+func GetNodeDetails(rp *rocketpool.RocketPool) ([]api.NodeRank, error) {
+
+    nodeAddresses, err := node.GetNodeAddresses(rp, nil)
+    if err != nil { return nil, err }
+
+    var merr error
+    nodeRanks := make([]api.NodeRank, len(nodeAddresses))
+    for bsi := 0; bsi < len(nodeAddresses); bsi += NodeDetailsBatchSize {
+
+        // Get batch start & end index
+        msi := bsi
+        mei := bsi + NodeDetailsBatchSize
+        if mei > len(nodeAddresses) { mei = len(nodeAddresses) }
+
+        // Load details
+        var wg errgroup.Group
+        for mi := msi; mi < mei; mi++ {
+            mi2 := mi
+            wg.Go(func() error {
+                address := nodeAddresses[mi2]
+                nodeRanks[mi2] = api.NodeRank{ Address: address }
+                details, err := node.GetNodeDetails(rp, address, nil)
+                if err == nil {
+                    nodeRanks[mi2].Registered = details.Exists
+                    nodeRanks[mi2].Trusted = details.Trusted
+                    nodeRanks[mi2].TimezoneLocation = details.TimezoneLocation
+                }
+                return err
+            })
+        }
+        if err := wg.Wait(); err != nil {
+            merr = multierr.Append(merr, err)
+        }
+    }
+
+    return nodeRanks, merr
 }
 
 

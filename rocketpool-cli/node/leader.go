@@ -31,7 +31,7 @@ func getLeader(c *cli.Context) error {
 
     fmt.Printf("%d Rocketpool nodes\n", len(response.Nodes))
     fmt.Println("")
-    fmt.Println("Rank,Node address,Score (ETH),Minipool count")
+    fmt.Println("Rank,Node address,Score (ETH),Minipool count,Registered,Trusted,Timezone")
 
     for _, nodeRank := range response.Nodes {
         nodeAddress := hex.AddPrefix(nodeRank.Address.Hex())
@@ -42,7 +42,7 @@ func getLeader(c *cli.Context) error {
             score = math.NaN()
         }
 
-        fmt.Printf("%4d,%s,%+0.10f,%4d", nodeRank.Rank, nodeAddress, score, len(nodeRank.Details))
+        fmt.Printf("%4d,%s,%+0.10f,%4d,%t,%t,%s", nodeRank.Rank, nodeAddress, score, len(nodeRank.Details), nodeRank.Registered, nodeRank.Trusted, nodeRank.TimezoneLocation)
         fmt.Println("")
     }
     return nil

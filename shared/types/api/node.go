@@ -40,6 +40,9 @@ type NodeLeaderResponse struct {
 type NodeRank struct {
     Rank int                        `json:"rank"`
     Address common.Address          `json:"address"`
+    Registered bool                 `json:"registered"`
+    Trusted bool                    `json:"trusted"`
+    TimezoneLocation string         `json:"timezoneLocation"`
     Score *big.Int                  `json:"score"`
     Details []MinipoolDetails       `json:"details"`
 }
