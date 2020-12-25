@@ -110,7 +110,7 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
                 Name:       "minipool_count",
                 Help:       "number of activated minipools running for this node",
             },
-            []string{"address"},
+            []string{"address", "trusted", "timezone"},
         ),
         totalNodes:         promauto.NewGauge(prometheus.GaugeOpts{
             Namespace:      "rocketpool",
@@ -255,7 +255,12 @@ func updateLeader(p *metricsProcess) error {
         // push into prometheus
         nodeAddress := hex.AddPrefix(nodeRank.Address.Hex())
         minipoolCount := len(nodeRank.Details)
-        p.metrics.nodeMinipoolCounts.With(prometheus.Labels{"address":nodeAddress}).Set(float64(minipoolCount))
+        labels := prometheus.Labels {
+            "address":nodeAddress,
+            "trusted":strconv.FormatBool(nodeRank.Trusted),
+            "timezone":nodeRank.TimezoneLocation,
+        }
+        p.metrics.nodeMinipoolCounts.With(labels).Set(float64(minipoolCount))
 
         if nodeRank.Score != nil {
             scoreEth := eth.WeiToEth(nodeRank.Score)
