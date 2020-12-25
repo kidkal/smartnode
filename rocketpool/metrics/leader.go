@@ -13,6 +13,7 @@ import (
     "github.com/urfave/cli"
     "golang.org/x/sync/errgroup"
 
+    "github.com/rocket-pool/rocketpool-go/deposit"
     "github.com/rocket-pool/rocketpool-go/node"
     "github.com/rocket-pool/rocketpool-go/network"
     "github.com/rocket-pool/rocketpool-go/rocketpool"
@@ -310,6 +311,7 @@ func updateNetwork(p *metricsProcess) error {
     p.metrics.networkBalances.With(prometheus.Labels{"unit":"TotalETH"}).Set(eth.WeiToEth(stuff.TotalETH))
     p.metrics.networkBalances.With(prometheus.Labels{"unit":"StakingETH"}).Set(eth.WeiToEth(stuff.StakingETH))
     p.metrics.networkBalances.With(prometheus.Labels{"unit":"TotalRETH"}).Set(eth.WeiToEth(stuff.TotalRETH))
+    p.metrics.networkBalances.With(prometheus.Labels{"unit":"Deposit"}).Set(eth.WeiToEth(stuff.DepositBalance))
     p.metrics.networkBalances.With(prometheus.Labels{"unit":"Withdraw"}).Set(eth.WeiToEth(stuff.WithdrawBalance))
 
     p.logger.Println("Exit updateNetwork")
@@ -322,6 +324,7 @@ type networkStuff struct {
     TotalETH *big.Int
     StakingETH *big.Int
     TotalRETH *big.Int
+    DepositBalance *big.Int
     WithdrawBalance *big.Int
 }
 
@@ -358,6 +361,13 @@ func getOtherNetworkStuff(rp *rocketpool.RocketPool) (*networkStuff, error) {
         totalRETH, err := network.GetTotalRETHSupply(rp, nil)
         if err == nil {
             stuff.TotalRETH = totalRETH
+        }
+        return err
+    })
+    wg.Go(func() error {
+        depositBalance, err := deposit.GetBalance(rp, nil)
+        if err == nil {
+            stuff.DepositBalance = depositBalance
         }
         return err
     })
