@@ -16,7 +16,7 @@ import (
 const (
     MetricsColor = color.BgGreen
 )
-var metricsUpdateInterval, _ = time.ParseDuration("15s")
+var metricsUpdateInterval, _ = time.ParseDuration("5m")
 
 // Register metrics command
 func RegisterCommands(app *cli.App, name string, aliases []string) {
