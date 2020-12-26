@@ -17,6 +17,7 @@ import (
     "github.com/rocket-pool/rocketpool-go/node"
     "github.com/rocket-pool/rocketpool-go/network"
     "github.com/rocket-pool/rocketpool-go/rocketpool"
+    "github.com/rocket-pool/rocketpool-go/types"
     "github.com/rocket-pool/rocketpool-go/utils/eth"
     "github.com/rocket-pool/smartnode/rocketpool/api/minipool"
     apiNetwork "github.com/rocket-pool/smartnode/rocketpool/api/network"
@@ -41,6 +42,7 @@ type RocketPoolMetrics struct {
     nodeScoreHistSum       prometheus.Gauge
     nodeScoreHistCount     prometheus.Gauge
     nodeMinipoolCounts     *prometheus.GaugeVec
+    minipoolCounts         *prometheus.GaugeVec
     totalNodes             prometheus.Gauge
     minipoolBalance        *prometheus.GaugeVec
     networkFees            *prometheus.GaugeVec
@@ -112,6 +114,15 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
                 Help:       "number of activated minipools running for this node",
             },
             []string{"address", "trusted", "timezone"},
+        ),
+        minipoolCounts: promauto.NewGaugeVec(
+            prometheus.GaugeOpts{
+                Namespace:  "rocketpool",
+                Subsystem:  "minipool",
+                Name:       "count",
+                Help:       "minipools counts with various aggregations",
+            },
+            []string{"status"},
         ),
         totalNodes:         promauto.NewGauge(prometheus.GaugeOpts{
             Namespace:      "rocketpool",
@@ -247,6 +258,7 @@ func updateLeader(p *metricsProcess) error {
     updateScore(p, nodeRanks)
     updateHistogram(p, nodeRanks)
     updateNodeMinipoolCount(p, nodeRanks)
+    updateMinipoolCount(p, nodeRanks)
 
     return nil
 }
@@ -313,7 +325,6 @@ func updateNodeMinipoolCount(p *metricsProcess, nodeRanks []api.NodeRank) {
 
     for _, nodeRank := range nodeRanks {
 
-        // push into prometheus
         nodeAddress := hex.AddPrefix(nodeRank.Address.Hex())
         minipoolCount := len(nodeRank.Details)
         labels := prometheus.Labels {
@@ -323,6 +334,37 @@ func updateNodeMinipoolCount(p *metricsProcess, nodeRanks []api.NodeRank) {
         }
         p.metrics.nodeMinipoolCounts.With(labels).Set(float64(minipoolCount))
     }
+}
+
+
+func updateMinipoolCount(p *metricsProcess, nodeRanks []api.NodeRank) {
+    p.metrics.minipoolCounts.Reset()
+
+    var totalCount, initializedCount, prelaunchCount, stakingCount, withdrawableCount, dissolvedCount int
+    var validatorExistsCount, validatorActiveCount int
+
+    for _, nodeRank := range nodeRanks {
+        totalCount += len(nodeRank.Details)
+        for _, minipool := range nodeRank.Details {
+            switch minipool.Status.Status {
+                case types.Initialized:  initializedCount++
+                case types.Prelaunch:    prelaunchCount++
+                case types.Staking:      stakingCount++
+                case types.Withdrawable: withdrawableCount++
+                case types.Dissolved:    dissolvedCount++
+        	}
+            if minipool.Validator.Exists { validatorExistsCount ++ }
+            if minipool.Validator.Active { validatorActiveCount ++ }
+        }
+    }
+    p.metrics.minipoolCounts.With(prometheus.Labels{"status":"total"}).Set(float64(totalCount))
+    p.metrics.minipoolCounts.With(prometheus.Labels{"status":"initialized"}).Set(float64(initializedCount))
+    p.metrics.minipoolCounts.With(prometheus.Labels{"status":"prelaunch"}).Set(float64(prelaunchCount))
+    p.metrics.minipoolCounts.With(prometheus.Labels{"status":"staking"}).Set(float64(stakingCount))
+    p.metrics.minipoolCounts.With(prometheus.Labels{"status":"withdrawable"}).Set(float64(withdrawableCount))
+    p.metrics.minipoolCounts.With(prometheus.Labels{"status":"dissolved"}).Set(float64(dissolvedCount))
+    p.metrics.minipoolCounts.With(prometheus.Labels{"status":"validatorExists"}).Set(float64(validatorExistsCount))
+    p.metrics.minipoolCounts.With(prometheus.Labels{"status":"validatorActive"}).Set(float64(validatorActiveCount))
 }
 
 
