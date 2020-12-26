@@ -23,6 +23,7 @@ import (
     apiNode "github.com/rocket-pool/smartnode/rocketpool/api/node"
     "github.com/rocket-pool/smartnode/shared/services"
     "github.com/rocket-pool/smartnode/shared/services/beacon"
+    "github.com/rocket-pool/smartnode/shared/types/api"
     "github.com/rocket-pool/smartnode/shared/utils/hex"
     "github.com/rocket-pool/smartnode/shared/utils/log"
 )
@@ -243,8 +244,30 @@ func updateLeader(p *metricsProcess) error {
     nodeRanks, err := apiNode.GetNodeLeader(p.rp, p.bc)
     if err != nil { return err }
 
+    updateScore(p, nodeRanks)
+    updateHistogram(p, nodeRanks)
+    updateNodeMinipoolCount(p, nodeRanks)
+
+    return nil
+}
+
+
+func updateScore(p *metricsProcess, nodeRanks []api.NodeRank) {
     p.metrics.nodeScores.Reset()
-    p.metrics.nodeMinipoolCounts.Reset()
+
+    for _, nodeRank := range nodeRanks {
+
+        nodeAddress := hex.AddPrefix(nodeRank.Address.Hex())
+
+        if nodeRank.Score != nil {
+            scoreEth := eth.WeiToEth(nodeRank.Score)
+            p.metrics.nodeScores.With(prometheus.Labels{"address":nodeAddress, "rank":strconv.Itoa(nodeRank.Rank)}).Set(scoreEth)
+        }
+    }
+}
+
+
+func updateHistogram(p *metricsProcess, nodeRanks []api.NodeRank) {
     p.metrics.nodeScoreHist.Reset()
 
     histogram := make(map[float64]int, 100)
@@ -252,19 +275,8 @@ func updateLeader(p *metricsProcess) error {
 
     for _, nodeRank := range nodeRanks {
 
-        // push into prometheus
-        nodeAddress := hex.AddPrefix(nodeRank.Address.Hex())
-        minipoolCount := len(nodeRank.Details)
-        labels := prometheus.Labels {
-            "address":nodeAddress,
-            "trusted":strconv.FormatBool(nodeRank.Trusted),
-            "timezone":nodeRank.TimezoneLocation,
-        }
-        p.metrics.nodeMinipoolCounts.With(labels).Set(float64(minipoolCount))
-
         if nodeRank.Score != nil {
             scoreEth := eth.WeiToEth(nodeRank.Score)
-            p.metrics.nodeScores.With(prometheus.Labels{"address":nodeAddress, "rank":strconv.Itoa(nodeRank.Rank)}).Set(scoreEth)
 
             // find next highest bucket to put in
             bucket := float64(int(scoreEth / BucketInterval)) * BucketInterval
@@ -293,10 +305,26 @@ func updateLeader(p *metricsProcess) error {
 
     p.metrics.nodeScoreHistSum.Set(sumScores)
     p.metrics.nodeScoreHistCount.Set(float64(accCount))
-
-    p.logger.Println("Exit updateLeader")
-    return nil
 }
+
+
+func updateNodeMinipoolCount(p *metricsProcess, nodeRanks []api.NodeRank) {
+    p.metrics.nodeMinipoolCounts.Reset()
+
+    for _, nodeRank := range nodeRanks {
+
+        // push into prometheus
+        nodeAddress := hex.AddPrefix(nodeRank.Address.Hex())
+        minipoolCount := len(nodeRank.Details)
+        labels := prometheus.Labels {
+            "address":nodeAddress,
+            "trusted":strconv.FormatBool(nodeRank.Trusted),
+            "timezone":nodeRank.TimezoneLocation,
+        }
+        p.metrics.nodeMinipoolCounts.With(labels).Set(float64(minipoolCount))
+    }
+}
+
 
 func updateNetwork(p *metricsProcess) error {
     p.logger.Println("Enter updateNetwork")
@@ -366,6 +394,13 @@ func getOtherNetworkStuff(rp *rocketpool.RocketPool) (*networkStuff, error) {
         totalRETH, err := network.GetTotalRETHSupply(rp, nil)
         if err == nil {
             stuff.TotalRETH = totalRETH
+        }
+        return err
+    })
+    wg.Go(func() error {
+        depositBalance, err := deposit.GetBalance(rp, nil)
+        if err == nil {
+            stuff.DepositBalance = depositBalance
         }
         return err
     })
