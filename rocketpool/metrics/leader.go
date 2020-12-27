@@ -14,12 +14,13 @@ import (
     "golang.org/x/sync/errgroup"
 
     "github.com/rocket-pool/rocketpool-go/deposit"
+    "github.com/rocket-pool/rocketpool-go/minipool"
     "github.com/rocket-pool/rocketpool-go/node"
     "github.com/rocket-pool/rocketpool-go/network"
     "github.com/rocket-pool/rocketpool-go/rocketpool"
     "github.com/rocket-pool/rocketpool-go/types"
     "github.com/rocket-pool/rocketpool-go/utils/eth"
-    "github.com/rocket-pool/smartnode/rocketpool/api/minipool"
+    apiMinipool "github.com/rocket-pool/smartnode/rocketpool/api/minipool"
     apiNetwork "github.com/rocket-pool/smartnode/rocketpool/api/network"
     apiNode "github.com/rocket-pool/smartnode/rocketpool/api/node"
     "github.com/rocket-pool/smartnode/shared/services"
@@ -42,9 +43,10 @@ type RocketPoolMetrics struct {
     nodeScoreHistSum       prometheus.Gauge
     nodeScoreHistCount     prometheus.Gauge
     nodeMinipoolCounts     *prometheus.GaugeVec
-    minipoolCounts         *prometheus.GaugeVec
     totalNodes             prometheus.Gauge
+    minipoolCounts         *prometheus.GaugeVec
     minipoolBalance        *prometheus.GaugeVec
+    minipoolQueue          *prometheus.GaugeVec
     networkFees            *prometheus.GaugeVec
     networkBlock           prometheus.Gauge
     networkBalances        *prometheus.GaugeVec
@@ -115,6 +117,12 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
             },
             []string{"address", "trusted", "timezone"},
         ),
+        totalNodes:         promauto.NewGauge(prometheus.GaugeOpts{
+            Namespace:      "rocketpool",
+            Subsystem:      "node",
+            Name:           "total_count",
+            Help:           "total number of nodes in Rocket Pool",
+        }),
         minipoolCounts: promauto.NewGaugeVec(
             prometheus.GaugeOpts{
                 Namespace:  "rocketpool",
@@ -124,12 +132,6 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
             },
             []string{"status"},
         ),
-        totalNodes:         promauto.NewGauge(prometheus.GaugeOpts{
-            Namespace:      "rocketpool",
-            Subsystem:      "node",
-            Name:           "total_count",
-            Help:           "total number of nodes in Rocket Pool",
-        }),
         minipoolBalance:    promauto.NewGaugeVec(
             prometheus.GaugeOpts{
                 Namespace:  "rocketpool",
@@ -138,6 +140,15 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
                 Help:       "balance of validator",
             },
             []string{"address", "validatorPubkey"},
+        ),
+        minipoolQueue:    promauto.NewGaugeVec(
+            prometheus.GaugeOpts{
+                Namespace:  "rocketpool",
+                Subsystem:  "minipool",
+                Name:       "queue_count",
+                Help:       "number of minipools in queue for assignment",
+            },
+            []string{"depositType"},
         ),
         networkFees:    promauto.NewGaugeVec(
             prometheus.GaugeOpts{
@@ -210,6 +221,7 @@ func updateMetrics(p *metricsProcess) error {
     err = updateMinipool(p)
     err = updateLeader(p)
     err = updateNetwork(p)
+    err = updateMinipoolQueue(p)
 
     p.logger.Println("Exit updateMetrics")
     return err
@@ -233,7 +245,7 @@ func updateNodeCounts(p *metricsProcess) error {
 func updateMinipool(p *metricsProcess) error {
     p.logger.Println("Enter updateMinipool")
 
-    minipools, err := minipool.GetNodeMinipoolDetails(p.rp, p.bc, p.account.Address)
+    minipools, err := apiMinipool.GetNodeMinipoolDetails(p.rp, p.bc, p.account.Address)
     if err != nil { return err }
 
     for _, minipool := range minipools {
@@ -387,6 +399,7 @@ func updateNetwork(p *metricsProcess) error {
     p.metrics.networkBalances.With(prometheus.Labels{"unit":"StakingETH"}).Set(eth.WeiToEth(stuff.StakingETH))
     p.metrics.networkBalances.With(prometheus.Labels{"unit":"TotalRETH"}).Set(eth.WeiToEth(stuff.TotalRETH))
     p.metrics.networkBalances.With(prometheus.Labels{"unit":"Deposit"}).Set(eth.WeiToEth(stuff.DepositBalance))
+    p.metrics.networkBalances.With(prometheus.Labels{"unit":"DepositExcess"}).Set(eth.WeiToEth(stuff.DepositExcessBalance))
     p.metrics.networkBalances.With(prometheus.Labels{"unit":"Withdraw"}).Set(eth.WeiToEth(stuff.WithdrawBalance))
 
     p.logger.Println("Exit updateNetwork")
@@ -400,6 +413,7 @@ type networkStuff struct {
     StakingETH *big.Int
     TotalRETH *big.Int
     DepositBalance *big.Int
+    DepositExcessBalance *big.Int
     WithdrawBalance *big.Int
 }
 
@@ -454,6 +468,13 @@ func getOtherNetworkStuff(rp *rocketpool.RocketPool) (*networkStuff, error) {
         return err
     })
     wg.Go(func() error {
+        depositExcessBalance, err := deposit.GetExcessBalance(rp, nil)
+        if err == nil {
+            stuff.DepositExcessBalance = depositExcessBalance
+        }
+        return err
+    })
+    wg.Go(func() error {
         withdrawBalance, err := network.GetWithdrawalBalance(rp, nil)
         if err == nil {
             stuff.WithdrawBalance = withdrawBalance
@@ -469,4 +490,46 @@ func getOtherNetworkStuff(rp *rocketpool.RocketPool) (*networkStuff, error) {
     // Return response
     return &stuff, nil
 
+}
+
+
+func updateMinipoolQueue(p *metricsProcess) error {
+    p.logger.Println("Enter updateMinipoolQueue")
+
+    var wg errgroup.Group
+    var fullQueueLength, halfQueueLength, emptyQueueLength uint64
+
+    // Get data
+    wg.Go(func() error {
+        response, err := minipool.GetQueueLength(p.rp, types.Full, nil)
+        if err == nil {
+            fullQueueLength = response
+        }
+        return err
+    })
+    wg.Go(func() error {
+        response, err := minipool.GetQueueLength(p.rp, types.Half, nil)
+        if err == nil {
+            halfQueueLength = response
+        }
+        return err
+    })
+    wg.Go(func() error {
+        response, err := minipool.GetQueueLength(p.rp, types.Empty, nil)
+        if err == nil {
+            emptyQueueLength = response
+        }
+        return err
+    })
+
+    // Wait for data
+    if err := wg.Wait(); err != nil {
+        return err
+    }
+    p.metrics.minipoolQueue.With(prometheus.Labels{"depositType":"Full"}).Set(float64(fullQueueLength))
+    p.metrics.minipoolQueue.With(prometheus.Labels{"depositType":"Half"}).Set(float64(halfQueueLength))
+    p.metrics.minipoolQueue.With(prometheus.Labels{"depositType":"Empty"}).Set(float64(emptyQueueLength))
+
+    p.logger.Println("Exit updateMinipoolQueue")
+    return nil
 }
