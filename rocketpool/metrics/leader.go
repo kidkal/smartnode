@@ -53,6 +53,8 @@ type RocketPoolMetrics struct {
     networkBlock           prometheus.Gauge
     networkBalances        *prometheus.GaugeVec
     settingsFlags          *prometheus.GaugeVec
+    settingsMinimumDeposit prometheus.Gauge
+    settingsMaximumDepositPoolSize prometheus.Gauge
 }
 
 
@@ -125,7 +127,7 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
                 Namespace:  "rocketpool",
                 Subsystem:  "node",
                 Name:       "minipool_count",
-                Help:       "number of activated minipools running for this node",
+                Help:       "number of activated minipools running for node address",
             },
             []string{"address", "trusted", "timezone"},
         ),
@@ -195,6 +197,18 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
             },
             []string{"flag"},
         ),
+        settingsMinimumDeposit: promauto.NewGauge(prometheus.GaugeOpts{
+            Namespace:      "rocketpool",
+            Subsystem:      "settings",
+            Name:           "minimum_deposit_eth",
+            Help:           "minimum deposit size",
+        }),
+        settingsMaximumDepositPoolSize: promauto.NewGauge(prometheus.GaugeOpts{
+            Namespace:      "rocketpool",
+            Subsystem:      "settings",
+            Name:           "maximum_pool_eth",
+            Help:           "maximum size of deposit pool",
+        }),
     }
 
     p := &metricsProcess {
@@ -529,9 +543,11 @@ func updateMinipoolQueue(p *metricsProcess) error {
     return nil
 }
 
+
 func updateSettings(p *metricsProcess) error {
     var wg errgroup.Group
     var depositEnabled, assignDepositEnabled, minipoolWithdrawEnabled, submitBalancesEnabled, processWithdrawalEnabled, nodeRegistrationEnabled, nodeDepositEnabled bool
+    var minimumDeposit, maximumDepositPoolSize *big.Int
 
     // Get data
     wg.Go(func() error {
@@ -583,6 +599,21 @@ func updateSettings(p *metricsProcess) error {
         }
         return err
     })
+    wg.Go(func() error {
+        response, err := settings.GetMinimumDeposit(p.rp, nil)
+        if err == nil {
+            minimumDeposit = response
+        }
+        return err
+    })
+    wg.Go(func() error {
+        response, err := settings.GetMaximumDepositPoolSize(p.rp, nil)
+        if err == nil {
+            maximumDepositPoolSize = response
+        }
+        return err
+    })
+
 
     // Wait for data
     if err := wg.Wait(); err != nil {
@@ -595,6 +626,8 @@ func updateSettings(p *metricsProcess) error {
     p.metrics.settingsFlags.With(prometheus.Labels{"flag":"ProcessWithdrawalEnabled"}).Set(float64(B2i(processWithdrawalEnabled)))
     p.metrics.settingsFlags.With(prometheus.Labels{"flag":"NodeRegistrationEnabled"}).Set(float64(B2i(nodeRegistrationEnabled)))
     p.metrics.settingsFlags.With(prometheus.Labels{"flag":"NodeDepositEnabled"}).Set(float64(B2i(nodeDepositEnabled)))
+    p.metrics.settingsMinimumDeposit.Set(eth.WeiToEth(minimumDeposit))
+    p.metrics.settingsMaximumDepositPoolSize.Set(eth.WeiToEth(maximumDepositPoolSize))
 
     return nil
 }
