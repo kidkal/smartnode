@@ -155,8 +155,8 @@ github.com/jrick/logrotate v1.0.0/go.mod h1:LNinyqDIJnpAur+b8yyulnQw/wDuN1+BYKlT
 github.com/julienschmidt/httprouter v1.1.1-0.20170430222011-975b5c4c7c21/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/karalabe/usb v0.0.0-20190919080040-51dc0efba356 h1:I/yrLt2WilKxlQKCM52clh5rGzTKpVctGT1lH4Dc8Jw=
 github.com/karalabe/usb v0.0.0-20190919080040-51dc0efba356/go.mod h1:Od972xHfMJowv7NGVDiWVxk2zxnWgjLlJzE+F4F7AGU=
-github.com/kidkal/rocketpool-go v0.0.4 h1:93nXR5abZV7lQmMpEA+rLY2fiDLQF/oKkXBGzom4fsc=
-github.com/kidkal/rocketpool-go v0.0.4/go.mod h1:1Prh+giH948mU3t917HTA4r4TX/o4h7KsbVhQjU72fY=
+github.com/kidkal/rocketpool-go v0.0.5 h1:4WZzNpNiWM4zINrQpGfCIqb24C3QRVI3EhxATtTvn0Y=
+github.com/kidkal/rocketpool-go v0.0.5/go.mod h1:1Prh+giH948mU3t917HTA4r4TX/o4h7KsbVhQjU72fY=
 github.com/kisielk/errcheck v1.2.0/go.mod h1:/BMXB+zMLi60iA8Vv6Ksmxu/1UDYcXs4uQLJ+jE2L00=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/kkdai/bstream v0.0.0-20161212061736-f391b8402d23/go.mod h1:J+Gs4SYgM6CZQHDETBtE9HaSEkGmuNXF86RwHhHUvq4=

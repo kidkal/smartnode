@@ -43,15 +43,7 @@ func run(c *cli.Context) error {
     }
 
     // Start metrics processes
-    go (func() {
-        for {
-            if err := startMetricsProcess(p); err != nil {
-                logger.Printlnf("Error in startMetricsProcess: %w", err)
-            }
-            time.Sleep(metricsUpdateInterval)
-            logger.Println("continuing...")
-        }
-    })()
+    go (func() { startMetricsProcess(p) })()
 
     // Serve metrics
     http.Handle("/metrics", promhttp.Handler())

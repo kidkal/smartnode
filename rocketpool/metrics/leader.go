@@ -12,12 +12,14 @@ import (
     "github.com/ethereum/go-ethereum/accounts"
     "github.com/urfave/cli"
     "golang.org/x/sync/errgroup"
+    "go.uber.org/multierr"
 
     "github.com/rocket-pool/rocketpool-go/deposit"
     "github.com/rocket-pool/rocketpool-go/minipool"
     "github.com/rocket-pool/rocketpool-go/node"
     "github.com/rocket-pool/rocketpool-go/network"
     "github.com/rocket-pool/rocketpool-go/rocketpool"
+    "github.com/rocket-pool/rocketpool-go/settings"
     "github.com/rocket-pool/rocketpool-go/types"
     "github.com/rocket-pool/rocketpool-go/utils/eth"
     apiMinipool "github.com/rocket-pool/smartnode/rocketpool/api/minipool"
@@ -50,6 +52,7 @@ type RocketPoolMetrics struct {
     networkFees            *prometheus.GaugeVec
     networkBlock           prometheus.Gauge
     networkBalances        *prometheus.GaugeVec
+    settingsFlags          *prometheus.GaugeVec
 }
 
 
@@ -62,9 +65,18 @@ type metricsProcess struct {
 }
 
 
-func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, error) {
+type networkStuff struct {
+    Block uint64
+    TotalETH *big.Int
+    StakingETH *big.Int
+    TotalRETH *big.Int
+    DepositBalance *big.Int
+    DepositExcessBalance *big.Int
+    WithdrawBalance *big.Int
+}
 
-    logger.Println("Enter newMetricsProcss")
+
+func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, error) {
 
     // Get services
     if err := services.RequireRocketStorage(c); err != nil { return nil, err }
@@ -174,6 +186,15 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
             },
             []string{"unit"},
         ),
+        settingsFlags:      promauto.NewGaugeVec(
+            prometheus.GaugeOpts{
+                Namespace:  "rocketpool",
+                Subsystem:  "settings",
+                Name:       "flags_bool",
+                Help:       "settings flags on rocketpool contracts",
+            },
+            []string{"flag"},
+        ),
     }
 
     p := &metricsProcess {
@@ -184,15 +205,12 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
         logger: logger,
     }
 
-    logger.Println("Exit newMetricsProcss")
     return p, nil
 }
 
 
 // Start RP metrics process
-func startMetricsProcess(p *metricsProcess) error {
-
-    p.logger.Println("Enter startMetricsProcess")
+func startMetricsProcess(p *metricsProcess) {
 
     // Update metrics on interval
     err := updateMetrics(p)
@@ -203,12 +221,10 @@ func startMetricsProcess(p *metricsProcess) error {
     for _ = range updateMetricsTimer.C {
         err = updateMetrics(p)
         if err != nil {
+            // print error here instead of exit
             p.logger.Printlnf("Error in updateMetrics: %w", err)
         }
     }
-
-    p.logger.Println("Exit startMetricsProcess")
-    return nil
 }
 
 
@@ -216,20 +232,20 @@ func startMetricsProcess(p *metricsProcess) error {
 func updateMetrics(p *metricsProcess) error {
     p.logger.Println("Enter updateMetrics")
 
-    var err error
-    err = updateNodeCounts(p)
-    err = updateMinipool(p)
-    err = updateLeader(p)
-    err = updateNetwork(p)
-    err = updateMinipoolQueue(p)
+    err1 := updateNodeCounts(p)
+    err2 := updateMinipool(p)
+    err3 := updateLeader(p)
+    err4 := updateNetwork(p)
+    err5 := updateMinipoolQueue(p)
+    err6 := updateSettings(p)
+    err := multierr.Combine(err1, err2, err3, err4, err5, err6)
 
-    p.logger.Println("Exit updateMetrics")
+    p.logger.Printlnf("Exit updateMetrics with %d errors", len(multierr.Errors(err)))
     return err
 }
 
 
 func updateNodeCounts(p *metricsProcess) error {
-    p.logger.Println("Enter updateNodeCounts")
 
     nodeCount, err := node.GetNodeCount(p.rp, nil)
     if err != nil { return err }
@@ -237,13 +253,11 @@ func updateNodeCounts(p *metricsProcess) error {
     // Update node metrics
     p.metrics.totalNodes.Set(float64(nodeCount))
 
-    p.logger.Println("Exit updateNodeCounts")
     return nil
 }
 
 
 func updateMinipool(p *metricsProcess) error {
-    p.logger.Println("Enter updateMinipool")
 
     minipools, err := apiMinipool.GetNodeMinipoolDetails(p.rp, p.bc, p.account.Address)
     if err != nil { return err }
@@ -256,13 +270,11 @@ func updateMinipool(p *metricsProcess) error {
         p.metrics.minipoolBalance.With(prometheus.Labels{"address":address, "validatorPubkey":validatorPubkey}).Set(balance)
     }
 
-    p.logger.Println("Exit updateMinipool")
     return nil
 }
 
 
 func updateLeader(p *metricsProcess) error {
-    p.logger.Println("Enter updateLeader")
 
     nodeRanks, err := apiNode.GetNodeLeader(p.rp, p.bc)
     if err != nil { return err }
@@ -381,7 +393,6 @@ func updateMinipoolCount(p *metricsProcess, nodeRanks []api.NodeRank) {
 
 
 func updateNetwork(p *metricsProcess) error {
-    p.logger.Println("Enter updateNetwork")
 
     nodeFees, err := apiNetwork.GetNodeFee(p.rp)
     if err != nil { return err }
@@ -402,19 +413,7 @@ func updateNetwork(p *metricsProcess) error {
     p.metrics.networkBalances.With(prometheus.Labels{"unit":"DepositExcess"}).Set(eth.WeiToEth(stuff.DepositExcessBalance))
     p.metrics.networkBalances.With(prometheus.Labels{"unit":"Withdraw"}).Set(eth.WeiToEth(stuff.WithdrawBalance))
 
-    p.logger.Println("Exit updateNetwork")
     return nil
-}
-
-
-type networkStuff struct {
-    Block uint64
-    TotalETH *big.Int
-    StakingETH *big.Int
-    TotalRETH *big.Int
-    DepositBalance *big.Int
-    DepositExcessBalance *big.Int
-    WithdrawBalance *big.Int
 }
 
 
@@ -489,13 +488,10 @@ func getOtherNetworkStuff(rp *rocketpool.RocketPool) (*networkStuff, error) {
 
     // Return response
     return &stuff, nil
-
 }
 
 
 func updateMinipoolQueue(p *metricsProcess) error {
-    p.logger.Println("Enter updateMinipoolQueue")
-
     var wg errgroup.Group
     var fullQueueLength, halfQueueLength, emptyQueueLength uint64
 
@@ -530,6 +526,82 @@ func updateMinipoolQueue(p *metricsProcess) error {
     p.metrics.minipoolQueue.With(prometheus.Labels{"depositType":"Half"}).Set(float64(halfQueueLength))
     p.metrics.minipoolQueue.With(prometheus.Labels{"depositType":"Empty"}).Set(float64(emptyQueueLength))
 
-    p.logger.Println("Exit updateMinipoolQueue")
     return nil
+}
+
+func updateSettings(p *metricsProcess) error {
+    var wg errgroup.Group
+    var depositEnabled, assignDepositEnabled, minipoolWithdrawEnabled, submitBalancesEnabled, processWithdrawalEnabled, nodeRegistrationEnabled, nodeDepositEnabled bool
+
+    // Get data
+    wg.Go(func() error {
+        response, err := settings.GetDepositEnabled(p.rp, nil)
+        if err == nil {
+            depositEnabled = response
+        }
+        return err
+    })
+    wg.Go(func() error {
+        response, err := settings.GetAssignDepositsEnabled(p.rp, nil)
+        if err == nil {
+            assignDepositEnabled = response
+        }
+        return err
+    })
+    wg.Go(func() error {
+        response, err := settings.GetMinipoolSubmitWithdrawableEnabled(p.rp, nil)
+        if err == nil {
+            minipoolWithdrawEnabled = response
+        }
+        return err
+    })
+    wg.Go(func() error {
+        response, err := settings.GetSubmitBalancesEnabled(p.rp, nil)
+        if err == nil {
+            submitBalancesEnabled = response
+        }
+        return err
+    })
+    wg.Go(func() error {
+        response, err := settings.GetProcessWithdrawalsEnabled(p.rp, nil)
+        if err == nil {
+            processWithdrawalEnabled = response
+        }
+        return err
+    })
+    wg.Go(func() error {
+        response, err := settings.GetNodeRegistrationEnabled(p.rp, nil)
+        if err == nil {
+            nodeRegistrationEnabled = response
+        }
+        return err
+    })
+    wg.Go(func() error {
+        response, err := settings.GetNodeDepositEnabled(p.rp, nil)
+        if err == nil {
+            nodeDepositEnabled = response
+        }
+        return err
+    })
+
+    // Wait for data
+    if err := wg.Wait(); err != nil {
+        return err
+    }
+    p.metrics.settingsFlags.With(prometheus.Labels{"flag":"DepositEnabled"}).Set(float64(B2i(depositEnabled)))
+    p.metrics.settingsFlags.With(prometheus.Labels{"flag":"AssignDepositEnabled"}).Set(float64(B2i(assignDepositEnabled)))
+    p.metrics.settingsFlags.With(prometheus.Labels{"flag":"MinipoolWithdrawEnabled"}).Set(float64(B2i(minipoolWithdrawEnabled)))
+    p.metrics.settingsFlags.With(prometheus.Labels{"flag":"SubmitBalancesEnabled"}).Set(float64(B2i(submitBalancesEnabled)))
+    p.metrics.settingsFlags.With(prometheus.Labels{"flag":"ProcessWithdrawalEnabled"}).Set(float64(B2i(processWithdrawalEnabled)))
+    p.metrics.settingsFlags.With(prometheus.Labels{"flag":"NodeRegistrationEnabled"}).Set(float64(B2i(nodeRegistrationEnabled)))
+    p.metrics.settingsFlags.With(prometheus.Labels{"flag":"NodeDepositEnabled"}).Set(float64(B2i(nodeDepositEnabled)))
+
+    return nil
+}
+
+func B2i(b bool) int8 {
+    if b {
+        return 1
+    }
+    return 0
 }
