@@ -21,8 +21,8 @@ Install the prerequisite development tools like `git`, `go` and `docker`
 
 This will:
 
-- build the `rocketpool-cli` binary and copy to `~/bin/rocketpool`
-- build the `rocketpool` service binary, wrap it into a docker image with label `local/rocketpool:latest`
+- build the `rocketpool-cli` binary and copy to `~/bin/rocketpool-metrics`
+- build the `rocketpool` service binary, wrap it into a docker image with label `kidkal/rocketpool:metrics`
 
 
 ## Install Instructions
