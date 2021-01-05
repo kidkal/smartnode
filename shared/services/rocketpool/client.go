@@ -332,6 +332,7 @@ func (c *Client) compose(composeFiles []string, args string) (string, error) {
     // Set environment variables from config
     env := []string{
         fmt.Sprintf("COMPOSE_PROJECT_NAME='%s'",    cfg.Smartnode.ProjectName),
+        fmt.Sprintf("NETWORK_NAME=%s",              cfg.Smartnode.NetworkName),
         fmt.Sprintf("SMARTNODE_IMAGE='%s'",         cfg.Smartnode.Image),
         fmt.Sprintf("ETH1_CLIENT='%s'",             cfg.GetSelectedEth1Client().ID),
         fmt.Sprintf("ETH1_IMAGE='%s'",              cfg.GetSelectedEth1Client().Image),
@@ -340,7 +341,9 @@ func (c *Client) compose(composeFiles []string, args string) (string, error) {
         fmt.Sprintf("VALIDATOR_CLIENT='%s'",        cfg.GetSelectedEth2Client().ID),
         fmt.Sprintf("VALIDATOR_IMAGE='%s'",         cfg.GetSelectedEth2Client().GetValidatorImage()),
         fmt.Sprintf("ETH1_PROVIDER='%s'",           cfg.Chains.Eth1.Provider),
+        fmt.Sprintf("ETH1_VOLUME_NAME=%s",          cfg.Chains.Eth1.VolumeName),
         fmt.Sprintf("ETH2_PROVIDER='%s'",           cfg.Chains.Eth2.Provider),
+        fmt.Sprintf("ETH2_VOLUME_NAME=%s",          cfg.Chains.Eth2.VolumeName),
     }
     for _, param := range cfg.Chains.Eth1.Client.Params {
         env = append(env, fmt.Sprintf("%s='%s'", param.Env, param.Value))
@@ -357,7 +360,7 @@ func (c *Client) compose(composeFiles []string, args string) (string, error) {
     }
 
     // Return command
-    return fmt.Sprintf("%s docker-compose --project-directory %s %s %s", strings.Join(env, " "), c.configPath, strings.Join(composeFileFlags, " "), args), nil
+    return fmt.Sprintf("cd %s;%s docker-compose %s %s", c.configPath, strings.Join(env, " "), strings.Join(composeFileFlags, " "), args), nil
 
 }
 

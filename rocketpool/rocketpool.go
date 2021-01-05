@@ -34,7 +34,7 @@ func main() {
             Email: "jake@rocketpool.net",
         },
     }
-    app.Copyright = "(c) 2020 Rocket Pool Pty Ltd -=# hacked by kk 20201225 #=-"
+    app.Copyright = "(c) 2020 Rocket Pool Pty Ltd    -=# Metrics Edition 20210106 #=-"
 
     // Set application flags
     app.Flags = []cli.Flag{
