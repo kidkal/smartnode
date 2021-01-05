@@ -3,6 +3,7 @@ services:
   metrics:
     image: kidkal/rocketpool:metrics
     container_name: rocketpool_metrics
+    hostname: rocketpool_metrics
     restart: unless-stopped
     expose:
       - 2112/tcp
@@ -13,6 +14,8 @@ services:
     command: "metrics"
   prometheus:
     image: prom/prometheus
+    container_name: prometheus
+    hostname: prometheus
     restart: "unless-stopped"
     expose:
       - 9090/tcp
@@ -24,10 +27,13 @@ services:
     entrypoint: "/setup/start-prometheus.sh"
   grafana:
     image: grafana/grafana
+    container_name: grafana
     hostname: grafana
     restart: "unless-stopped"
-    ports:
-      - 3000:3000/tcp
+    expose:
+      - 3000/tcp
+    #ports:
+    #  - 3000:3000/tcp
     volumes:
       - grafana-data:/var/lib/grafana
     networks:
@@ -37,7 +43,7 @@ services:
 networks:
   net:
     external: true
-    name: rocketpool_net01
+    name: rocketpool_net
 volumes:
   grafana-data:
   prom-data:

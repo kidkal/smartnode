@@ -9,7 +9,7 @@ import (
 
     "github.com/prometheus/client_golang/prometheus"
     "github.com/prometheus/client_golang/prometheus/promauto"
-    "github.com/ethereum/go-ethereum/accounts"
+    //"github.com/ethereum/go-ethereum/accounts"
     "github.com/urfave/cli"
     "golang.org/x/sync/errgroup"
     "go.uber.org/multierr"
@@ -22,7 +22,7 @@ import (
     "github.com/rocket-pool/rocketpool-go/settings"
     "github.com/rocket-pool/rocketpool-go/types"
     "github.com/rocket-pool/rocketpool-go/utils/eth"
-    apiMinipool "github.com/rocket-pool/smartnode/rocketpool/api/minipool"
+    //apiMinipool "github.com/rocket-pool/smartnode/rocketpool/api/minipool"
     apiNetwork "github.com/rocket-pool/smartnode/rocketpool/api/network"
     apiNode "github.com/rocket-pool/smartnode/rocketpool/api/node"
     "github.com/rocket-pool/smartnode/shared/services"
@@ -61,7 +61,7 @@ type RocketPoolMetrics struct {
 type metricsProcess struct {
     rp *rocketpool.RocketPool
     bc beacon.Client
-    account accounts.Account
+    //account accounts.Account
     metrics RocketPoolMetrics
     logger log.ColorLogger
 }
@@ -83,14 +83,14 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
     // Get services
     if err := services.RequireRocketStorage(c); err != nil { return nil, err }
     if err := services.RequireBeaconClientSynced(c); err != nil { return nil, err }
-    w, err := services.GetWallet(c)
-    if err != nil { return nil, err }
+    //w, err := services.GetWallet(c)
+    //if err != nil { return nil, err }
     rp, err := services.GetRocketPool(c)
     if err != nil { return nil, err }
     bc, err := services.GetBeaconClient(c)
     if err != nil { return nil, err }
-    account, err := w.GetNodeAccount()
-    if err != nil { return nil, err }
+    //account, err := w.GetNodeAccount()
+    //if err != nil { return nil, err }
 
     // Initialise metrics
     metrics := RocketPoolMetrics {
@@ -214,7 +214,7 @@ func newMetricsProcss(c *cli.Context, logger log.ColorLogger) (*metricsProcess, 
     p := &metricsProcess {
         rp: rp,
         bc: bc,
-        account: account,
+        //account: account,
         metrics: metrics,
         logger: logger,
     }
@@ -247,12 +247,12 @@ func updateMetrics(p *metricsProcess) error {
     p.logger.Println("Enter updateMetrics")
 
     err1 := updateNodeCounts(p)
-    err2 := updateMinipool(p)
+    //err2 := updateMinipool(p)
     err3 := updateLeader(p)
     err4 := updateNetwork(p)
     err5 := updateMinipoolQueue(p)
     err6 := updateSettings(p)
-    err := multierr.Combine(err1, err2, err3, err4, err5, err6)
+    err := multierr.Combine(err1, err3, err4, err5, err6)
 
     p.logger.Printlnf("Exit updateMetrics with %d errors", len(multierr.Errors(err)))
     return err
@@ -271,21 +271,21 @@ func updateNodeCounts(p *metricsProcess) error {
 }
 
 
-func updateMinipool(p *metricsProcess) error {
-
-    minipools, err := apiMinipool.GetNodeMinipoolDetails(p.rp, p.bc, p.account.Address)
-    if err != nil { return err }
-
-    for _, minipool := range minipools {
-        address := hex.AddPrefix(minipool.Node.Address.Hex())
-        validatorPubkey := hex.AddPrefix(minipool.ValidatorPubkey.Hex())
-        balance := eth.WeiToEth(minipool.Validator.Balance)
-
-        p.metrics.minipoolBalance.With(prometheus.Labels{"address":address, "validatorPubkey":validatorPubkey}).Set(balance)
-    }
-
-    return nil
-}
+// func updateMinipool(p *metricsProcess) error {
+//
+//     minipools, err := apiMinipool.GetNodeMinipoolDetails(p.rp, p.bc, p.account.Address)
+//     if err != nil { return err }
+//
+//     for _, minipool := range minipools {
+//         address := hex.AddPrefix(minipool.Node.Address.Hex())
+//         validatorPubkey := hex.AddPrefix(minipool.ValidatorPubkey.Hex())
+//         balance := eth.WeiToEth(minipool.Validator.Balance)
+//
+//         p.metrics.minipoolBalance.With(prometheus.Labels{"address":address, "validatorPubkey":validatorPubkey}).Set(balance)
+//     }
+//
+//     return nil
+// }
 
 
 func updateLeader(p *metricsProcess) error {
