@@ -1,5 +1,5 @@
 #!/bin/bash
-docker build --file docker/rocketpool-dockerfile --tag local/rocketpool:latest .
+docker build --file docker/rocketpool-dockerfile --tag kidkal/rocketpool:metrics .
 pushd rocketpool-cli
 go build
 popd

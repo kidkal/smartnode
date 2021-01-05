@@ -1,8 +1,5 @@
-smartnode:
-  image: local/rocketpool:latest
 chains:
   eth1:
-    provider: /ipc/geth.ipc
     client:
       selected: geth
       params:
