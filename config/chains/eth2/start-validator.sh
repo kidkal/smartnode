@@ -16,7 +16,7 @@ fi
 # Lighthouse startup
 if [ "$CLIENT" = "lighthouse" ]; then
 
-    exec /usr/local/bin/lighthouse validator --network pyrmont --datadir /data/validators/lighthouse --init-slashing-protection --delete-lockfiles --beacon-node "http://$ETH2_PROVIDER" --graffiti "$GRAFFITI" --http --http-port 5062 --metrics --metrics-address 0.0.0.0 --metrics-port 5064 --metrics-allow-origin '*'
+    exec /usr/local/bin/lighthouse validator --network pyrmont --datadir /data/validators/lighthouse --init-slashing-protection --beacon-node "http://$ETH2_PROVIDER" --graffiti "$GRAFFITI" --metrics --metrics-address 0.0.0.0 --metrics-port 5064 --metrics-allow-origin '*'
 
 fi
 
@@ -24,7 +24,7 @@ fi
 # Prysm startup
 if [ "$CLIENT" = "prysm" ]; then
 
-    exec /app/validator/validator --accept-terms-of-use --pyrmont --wallet-dir /data/validators/prysm-non-hd --wallet-password-file /data/password --beacon-rpc-provider "$ETH2_PROVIDER" --graffiti "$GRAFFITI" --monitoring-host 0.0.0.0 --blst
+    exec /app/validator/validator --accept-terms-of-use --pyrmont --wallet-dir /data/validators/prysm-non-hd --wallet-password-file /data/password --beacon-rpc-provider "$ETH2_PROVIDER" --graffiti "$GRAFFITI"
 
 fi
 

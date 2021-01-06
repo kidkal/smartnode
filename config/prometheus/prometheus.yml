@@ -8,14 +8,14 @@ alerting:
 scrape_configs:
   - job_name: 'validator'
     static_configs:
-      - targets: ['rocketpool_validator:5064']
+      - targets: ['validator:5064']
   - job_name: 'geth node'
     metrics_path: /debug/metrics/prometheus
     static_configs:
-      - targets: ['rocketpool_eth1:6060']
+      - targets: ['eth1:6060']
   - job_name: 'eth2'
     static_configs:
-      - targets: ['rocketpool_eth2:5053']
+      - targets: ['eth2:5053']
   - job_name: 'rocketpool'
     static_configs:
-      - targets: ['rocketpool_metrics:2112']
+      - targets: ['metrics_api:2112']

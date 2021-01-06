@@ -1,9 +1,9 @@
 version: "3.8"
 services:
-  metrics:
-    image: kidkal/rocketpool:metrics
-    container_name: rocketpool_metrics
-    hostname: rocketpool_metrics
+  api:
+    image: ${SMARTNODE_IMAGE}
+    container_name: ${COMPOSE_PROJECT_NAME}_api
+    hostname: ${COMPOSE_PROJECT_NAME}_api
     restart: unless-stopped
     expose:
       - 2112/tcp
@@ -14,8 +14,8 @@ services:
     command: "metrics"
   prometheus:
     image: prom/prometheus
-    container_name: prometheus
-    hostname: prometheus
+    container_name: ${COMPOSE_PROJECT_NAME}_prometheus
+    hostname: ${COMPOSE_PROJECT_NAME}_prometheus
     restart: "unless-stopped"
     expose:
       - 9090/tcp
@@ -27,13 +27,11 @@ services:
     entrypoint: "/setup/start-prometheus.sh"
   grafana:
     image: grafana/grafana
-    container_name: grafana
-    hostname: grafana
+    container_name: ${COMPOSE_PROJECT_NAME}_grafana
+    hostname: ${COMPOSE_PROJECT_NAME}_grafana
     restart: "unless-stopped"
-    expose:
-      - 3000/tcp
-    #ports:
-    #  - 3000:3000/tcp
+    ports:
+      - 3000:3000/tcp
     volumes:
       - grafana-data:/var/lib/grafana
     networks:

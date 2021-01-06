@@ -2,27 +2,47 @@
 # This script launches ETH1 clients for Rocket Pool's docker stack; only edit if you know what you're doing ;)
 
 
-_term() {
-	echo "Caught SIGTERM signal!"
-	kill -TERM "$child"
+prep_term()
+{
+    unset term_child_pid
+    unset term_kill_needed
+    trap 'handle_term' TERM INT
+}
+
+handle_term()
+{
+    if [ "${term_child_pid}" ]; then
+        kill -TERM "${term_child_pid}" 2>/dev/null
+    else
+        term_kill_needed="yes"
+    fi
+}
+
+wait_term()
+{
+    term_child_pid=$!
+    if [ "${term_kill_needed}" ]; then
+        kill -TERM "${term_child_pid}" 2>/dev/null 
+    fi
+    wait ${term_child_pid} 2>/dev/null
+    trap - TERM INT
+    wait ${term_child_pid} 2>/dev/null
 }
 
 
 # Geth startup
 if [ "$CLIENT" = "geth" ]; then
 
-    trap _term SIGTERM
-
-    CMD="/usr/local/bin/geth --goerli --datadir /ethclient/geth --ipcpath /ipc/geth.ipc --http --http.addr 0.0.0.0 --http.port 8545 --http.api eth,net,personal,web3 --http.vhosts '*' --ws --ws.port 8546 --ws.api eth,net,web3 --ws.addr 0.0.0.0 --ws.origins '*'"
+    CMD="exec /usr/local/bin/geth --goerli --datadir /ethclient/geth \
+                                  --metrics --metrics.addr 0.0.0.0 --metrics.port 6060 --pprof.addr 0.0.0.0"
 
     if [ ! -z "$ETHSTATS_LABEL" ] && [ ! -z "$ETHSTATS_LOGIN" ]; then
         CMD="$CMD --ethstats $ETHSTATS_LABEL:$ETHSTATS_LOGIN"
     fi
 
+    prep_term
     eval "$CMD" &
-
-    child=$!
-	wait "$child"
+    wait_term
 
 fi
 
