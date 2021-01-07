@@ -8,3 +8,5 @@ node_modules
 /rocketpool-cli/rocketpool-cli-windows-amd64.exe
 rocketpool-cli/rocketpool-cli
 rocketpool/rocketpool
+metrics.tar.bz2
+metrics/
