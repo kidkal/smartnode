@@ -1,6 +1,8 @@
 package api
 
 import (
+    "math/big"
+
     "github.com/ethereum/go-ethereum/common"
 
     "github.com/rocket-pool/rocketpool-go/tokens"
@@ -26,6 +28,23 @@ type NodeStatusResponse struct {
         WithdrawalAvailable int         `json:"withdrawalAvailable"`
         CloseAvailable int              `json:"closeAvailable"`
     }                               `json:"minipoolCounts"`
+}
+
+
+type NodeLeaderResponse struct {
+    Status string                   `json:"status"`
+    Error string                    `json:"error"`
+    Nodes []NodeRank                `json:"nodes"`
+}
+
+type NodeRank struct {
+    Rank int                        `json:"rank"`
+    Address common.Address          `json:"address"`
+    Registered bool                 `json:"registered"`
+    Trusted bool                    `json:"trusted"`
+    TimezoneLocation string         `json:"timezoneLocation"`
+    Score *big.Int                  `json:"score"`
+    Details []MinipoolDetails       `json:"details"`
 }
 
 
