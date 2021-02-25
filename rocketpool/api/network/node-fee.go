@@ -2,6 +2,7 @@ package network
 
 import (
     "github.com/rocket-pool/rocketpool-go/network"
+    "github.com/rocket-pool/rocketpool-go/rocketpool"
     "github.com/rocket-pool/rocketpool-go/settings"
     "github.com/urfave/cli"
     "golang.org/x/sync/errgroup"
@@ -22,6 +23,12 @@ func getNodeFee(c *cli.Context) (*api.NodeFeeResponse, error) {
     rp, err := services.GetRocketPool(c)
     if err != nil { return nil, err }
 
+    response, err := GetNodeFee(rp)
+    return response, err
+}
+
+
+func GetNodeFee(rp *rocketpool.RocketPool) (*api.NodeFeeResponse, error) {
     // Response
     response := api.NodeFeeResponse{}
 
