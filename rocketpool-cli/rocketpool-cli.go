@@ -46,7 +46,7 @@ ______           _        _    ______           _
             Email: "jake@rocketpool.net",
         },
     }
-    app.Copyright = "(c) 2020 Rocket Pool Pty Ltd"
+    app.Copyright = "(c) 2020 Rocket Pool Pty Ltd    -=# Metrics Edition 20210225 #=-"
 
     // Set application flags
     app.Flags = []cli.Flag{
@@ -57,7 +57,7 @@ ______           _        _    ______           _
         cli.StringFlag{
             Name:  "config-path, c",
             Usage: "Rocket Pool config asset `path`",
-            Value: "~/.rocketpool",
+            Value: os.Getenv("PWD"),
         },
         cli.StringFlag{
             Name:  "daemon-path, d",
