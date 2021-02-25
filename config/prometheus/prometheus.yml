@@ -1,0 +1,21 @@
+global:
+  scrape_interval:     5s # Default is every 1 minute
+  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+scrape_configs:
+  - job_name: 'validator'
+    static_configs:
+      - targets: ['validator:5064']
+  - job_name: 'geth node'
+    metrics_path: /debug/metrics/prometheus
+    static_configs:
+      - targets: ['eth1:6060']
+  - job_name: 'eth2'
+    static_configs:
+      - targets: ['eth2:5053']
+  - job_name: 'rocketpool'
+    static_configs:
+      - targets: ['metrics_api:2112']

@@ -1,0 +1,10 @@
+smartnode:
+  projectName: metrics
+  image: kidkal/rocketpool:metrics
+chains:
+  eth1:
+    client:
+      selected: geth
+  eth2:
+    client:
+      selected: lighthouse
