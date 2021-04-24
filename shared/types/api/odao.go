@@ -1,11 +1,11 @@
 package api
 
 import (
-	"math/big"
+    "math/big"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/rocket-pool/rocketpool-go/dao"
-	tn "github.com/rocket-pool/rocketpool-go/dao/trustednode"
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/rocket-pool/rocketpool-go/dao"
+    tn "github.com/rocket-pool/rocketpool-go/dao/trustednode"
 )
 
 

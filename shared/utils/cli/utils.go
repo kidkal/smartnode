@@ -1,9 +1,9 @@
 package cli
 
 import (
-	"fmt"
+    "fmt"
 
-	"github.com/ethereum/go-ethereum/common"
+    "github.com/ethereum/go-ethereum/common"
 )
 
 // Print a TX's details to the console.

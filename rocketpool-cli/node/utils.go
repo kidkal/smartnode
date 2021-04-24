@@ -1,15 +1,15 @@
 package node
 
 import (
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"net/http"
-	"os/exec"
-	"strconv"
-	"strings"
+    "encoding/json"
+    "fmt"
+    "io/ioutil"
+    "net/http"
+    "os/exec"
+    "strconv"
+    "strings"
 
-	cliutils "github.com/rocket-pool/smartnode/shared/utils/cli"
+    cliutils "github.com/rocket-pool/smartnode/shared/utils/cli"
 )
 
 // FreeGeoIP config

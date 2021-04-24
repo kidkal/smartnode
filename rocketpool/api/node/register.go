@@ -1,13 +1,13 @@
 package node
 
 import (
-	"github.com/rocket-pool/rocketpool-go/node"
-	"github.com/rocket-pool/rocketpool-go/settings/protocol"
-	"github.com/urfave/cli"
-	"golang.org/x/sync/errgroup"
+    "github.com/rocket-pool/rocketpool-go/node"
+    "github.com/rocket-pool/rocketpool-go/settings/protocol"
+    "github.com/urfave/cli"
+    "golang.org/x/sync/errgroup"
 
-	"github.com/rocket-pool/smartnode/shared/services"
-	"github.com/rocket-pool/smartnode/shared/types/api"
+    "github.com/rocket-pool/smartnode/shared/services"
+    "github.com/rocket-pool/smartnode/shared/types/api"
 )
 
 

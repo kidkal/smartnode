@@ -1,17 +1,17 @@
 package minipool
 
 import (
-	"bytes"
-	"fmt"
+    "bytes"
+    "fmt"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/rocket-pool/rocketpool-go/utils/eth"
-	"github.com/urfave/cli"
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/rocket-pool/rocketpool-go/utils/eth"
+    "github.com/urfave/cli"
 
-	"github.com/rocket-pool/smartnode/shared/services/rocketpool"
-	"github.com/rocket-pool/smartnode/shared/types/api"
-	cliutils "github.com/rocket-pool/smartnode/shared/utils/cli"
-	"github.com/rocket-pool/smartnode/shared/utils/math"
+    "github.com/rocket-pool/smartnode/shared/services/rocketpool"
+    "github.com/rocket-pool/smartnode/shared/types/api"
+    cliutils "github.com/rocket-pool/smartnode/shared/utils/cli"
+    "github.com/rocket-pool/smartnode/shared/utils/math"
 )
 
 

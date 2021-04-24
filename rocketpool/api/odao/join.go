@@ -1,18 +1,18 @@
 package odao
 
 import (
-	"math/big"
+    "math/big"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/rocket-pool/rocketpool-go/dao/trustednode"
-	tndao "github.com/rocket-pool/rocketpool-go/dao/trustednode"
-	tnsettings "github.com/rocket-pool/rocketpool-go/settings/trustednode"
-	"github.com/rocket-pool/rocketpool-go/tokens"
-	"github.com/urfave/cli"
-	"golang.org/x/sync/errgroup"
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/rocket-pool/rocketpool-go/dao/trustednode"
+    tndao "github.com/rocket-pool/rocketpool-go/dao/trustednode"
+    tnsettings "github.com/rocket-pool/rocketpool-go/settings/trustednode"
+    "github.com/rocket-pool/rocketpool-go/tokens"
+    "github.com/urfave/cli"
+    "golang.org/x/sync/errgroup"
 
-	"github.com/rocket-pool/smartnode/shared/services"
-	"github.com/rocket-pool/smartnode/shared/types/api"
+    "github.com/rocket-pool/smartnode/shared/services"
+    "github.com/rocket-pool/smartnode/shared/types/api"
 )
 
 

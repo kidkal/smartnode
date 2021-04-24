@@ -1,13 +1,13 @@
 package rocketpool
 
 import (
-	"encoding/json"
-	"fmt"
-	"math/big"
+    "encoding/json"
+    "fmt"
+    "math/big"
 
-	"github.com/ethereum/go-ethereum/common"
+    "github.com/ethereum/go-ethereum/common"
 
-	"github.com/rocket-pool/smartnode/shared/types/api"
+    "github.com/rocket-pool/smartnode/shared/types/api"
 )
 
 // Get node status

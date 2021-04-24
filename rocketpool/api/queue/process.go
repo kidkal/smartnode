@@ -1,17 +1,17 @@
 package queue
 
 import (
-	"math/big"
+    "math/big"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/rocket-pool/rocketpool-go/deposit"
-	"github.com/rocket-pool/rocketpool-go/minipool"
-	"github.com/rocket-pool/rocketpool-go/settings/protocol"
-	"github.com/urfave/cli"
-	"golang.org/x/sync/errgroup"
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/rocket-pool/rocketpool-go/deposit"
+    "github.com/rocket-pool/rocketpool-go/minipool"
+    "github.com/rocket-pool/rocketpool-go/settings/protocol"
+    "github.com/urfave/cli"
+    "golang.org/x/sync/errgroup"
 
-	"github.com/rocket-pool/smartnode/shared/services"
-	"github.com/rocket-pool/smartnode/shared/types/api"
+    "github.com/rocket-pool/smartnode/shared/services"
+    "github.com/rocket-pool/smartnode/shared/types/api"
 )
 
 

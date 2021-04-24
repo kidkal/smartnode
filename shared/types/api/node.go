@@ -1,11 +1,11 @@
 package api
 
 import (
-	"math/big"
+    "math/big"
 
-	"github.com/ethereum/go-ethereum/common"
+    "github.com/ethereum/go-ethereum/common"
 
-	"github.com/rocket-pool/rocketpool-go/tokens"
+    "github.com/rocket-pool/rocketpool-go/tokens"
 )
 
 

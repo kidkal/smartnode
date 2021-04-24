@@ -1,18 +1,18 @@
 package cli
 
 import (
-	"encoding/hex"
-	"fmt"
-	"math/big"
-	"regexp"
-	"strconv"
-	"strings"
+    "encoding/hex"
+    "fmt"
+    "math/big"
+    "regexp"
+    "strconv"
+    "strings"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/tyler-smith/go-bip39"
-	"github.com/urfave/cli"
+    "github.com/ethereum/go-ethereum/common"
+    "github.com/tyler-smith/go-bip39"
+    "github.com/urfave/cli"
 
-	"github.com/rocket-pool/smartnode/shared/services/passwords"
+    "github.com/rocket-pool/smartnode/shared/services/passwords"
 )
 
 // Config

@@ -1,21 +1,21 @@
 package node
 
 import (
-	"context"
-	"errors"
-	"math/big"
+    "context"
+    "errors"
+    "math/big"
 
-	"github.com/ethereum/go-ethereum/common"
-	tndao "github.com/rocket-pool/rocketpool-go/dao/trustednode"
-	"github.com/rocket-pool/rocketpool-go/minipool"
-	"github.com/rocket-pool/rocketpool-go/node"
-	"github.com/rocket-pool/rocketpool-go/settings/protocol"
-	tnsettings "github.com/rocket-pool/rocketpool-go/settings/trustednode"
-	"github.com/urfave/cli"
-	"golang.org/x/sync/errgroup"
+    "github.com/ethereum/go-ethereum/common"
+    tndao "github.com/rocket-pool/rocketpool-go/dao/trustednode"
+    "github.com/rocket-pool/rocketpool-go/minipool"
+    "github.com/rocket-pool/rocketpool-go/node"
+    "github.com/rocket-pool/rocketpool-go/settings/protocol"
+    tnsettings "github.com/rocket-pool/rocketpool-go/settings/trustednode"
+    "github.com/urfave/cli"
+    "golang.org/x/sync/errgroup"
 
-	"github.com/rocket-pool/smartnode/shared/services"
-	"github.com/rocket-pool/smartnode/shared/types/api"
+    "github.com/rocket-pool/smartnode/shared/services"
+    "github.com/rocket-pool/smartnode/shared/types/api"
 )
 
 
